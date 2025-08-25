@@ -1,0 +1,14 @@
+# Dependencies
+/node_modules
+
+# Environment Variables
+.env
+
+# Python cache
+__pycache__/
+
+# Build folder (for React)
+/build
+
+# Log files
+*.log
