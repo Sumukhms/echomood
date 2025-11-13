@@ -6,15 +6,28 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 8888;
 
-// CORS configuration - allow requests from frontend
+// CORS configuration - allow requests from our Vite frontend
+const allowedOrigins = [
+    'http://localhost:5173', // Vite dev server
+    'http://127.0.0.1:5173'  // Alternate Vite address
+];
+
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
     credentials: true,
     optionsSuccessStatus: 200
 }));
 
-app.use(express.json());
+// Middleware to parse JSON bodies
+app.use(express.json({ limit: '10mb' })); // Increase limit for potential image data
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -25,10 +38,10 @@ app.get('/health', (req, res) => {
 const moodRoutes = require('./api/moodRoutes');
 app.use('/api/mood', moodRoutes);
 
-// Error handling middleware
+// Centralized error handling middleware
 app.use((err, req, res, next) => {
-    console.error('Error:', err);
-    res.status(500).json({ 
+    console.error('An unhandled error occurred:', err);
+    res.status(5.00).json({ 
         error: 'Internal server error',
         message: err.message 
     });
@@ -37,5 +50,5 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
     console.log(`🚀 EchoMood backend server is listening on port ${PORT}`);
     console.log(`📡 Health check: http://localhost:${PORT}/health`);
-    console.log(`🎵 API endpoint: http://localhost:${PORT}/api/mood/detect`);
+    console.log(`🎵 API endpoint: http://localhost:${PORT}/api/mood`);
 });

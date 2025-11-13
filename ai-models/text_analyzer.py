@@ -101,25 +101,33 @@ class ImprovedTextAnalyzer:
         else:
             return self.analyze_with_vader(text)
 
-# Global analyzer instance
-analyzer = ImprovedTextAnalyzer()
+# NO global analyzer instance here. 
+# ai_server.py will create its own instance.
 
 def analyze_text_mood(text):
-    """Wrapper function for compatibility."""
-    return analyzer.analyze_text_mood(text)
+    """
+    Wrapper function for compatibility with old code.
+    DEPRECATED: Create an instance of ImprovedTextAnalyzer instead.
+    """
+    print("WARNING: Using deprecated analyze_text_mood function.")
+    if not hasattr(analyze_text_mood, "analyzer"):
+         analyze_text_mood.analyzer = ImprovedTextAnalyzer() # Lazy load
+    return analyze_text_mood.analyzer.analyze_text_mood(text)
+
 
 if __name__ == "__main__":
+    # Test by creating a local instance
+    print("Testing ImprovedTextAnalyzer...")
+    local_analyzer = ImprovedTextAnalyzer()
+    
     test_texts = [
         "Today was an absolutely fantastic and wonderful day!",
-        "I'm feeling pretty good about the project.",
-        "I'm not sure how I feel about this situation.",
-        "This is really frustrating and I am so angry.",
         "I'm feeling quite down and melancholic today.",
         "WOW! This is amazing! I can't believe it! :D",
-        "Everything is falling apart and I don't know what to do :("
+        "This is really frustrating and I am so angry."
     ]
     
     for text in test_texts:
         print(f"\nText: '{text}'")
-        mood = analyze_text_mood(text)
+        mood = local_analyzer.analyze_text_mood(text)
         print(f"Final Mood: {mood}\n" + "="*60)
