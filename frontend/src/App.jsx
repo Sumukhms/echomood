@@ -9,11 +9,10 @@ import { FaFileAlt, FaMicrophone, FaVideo } from 'react-icons/fa';
 import Header from './components/Header';
 import TabButton from './components/TabButton';
 import TextInputPanel from './components/TextInputPanel';
+import VoiceInputPanel from './components/VoiceInputPanel';
+import FaceInputPanel from './components/FaceInputPanel';
 import SongCard from './components/SongCard';
 import LoadingSpinner from './components/LoadingSpinner';
-// (We will create these panels in the next steps)
-// import VoiceInputPanel from './components/VoiceInputPanel';
-// import FaceInputPanel from './components/FaceInputPanel';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('text'); // 'text', 'voice', 'face'
@@ -40,15 +39,13 @@ export default function App() {
             icon={<FaMicrophone />}
             label="Voice"
             isActive={activeTab === 'voice'}
-            onClick={() => alert("Voice panel coming soon!")} // Placeholder
+            onClick={() => setActiveTab('voice')}
           />
           <TabButton
             icon={<FaVideo />}
             label="Face"
-             // --- THIS IS THE FIX ---
             isActive={activeTab === 'face'}
-            // --- END OF FIX ---
-            onClick={() => alert("Face panel coming soon!")} // Placeholder
+            onClick={() => setActiveTab('face')}
           />
         </nav>
 
@@ -61,9 +58,19 @@ export default function App() {
             />
           )}
           
-          {/* Placeholders for other panels */}
-          {activeTab === 'voice' && <p>Voice panel will go here.</p>}
-          {activeTab === 'face' && <p>Face panel will go here.</p>}
+          {activeTab === 'voice' && (
+            <VoiceInputPanel 
+              getRecommendations={getRecommendations} 
+              isLoading={isLoading} 
+            />
+          )}
+          
+          {activeTab === 'face' && (
+            <FaceInputPanel 
+              getRecommendations={getRecommendations} 
+              isLoading={isLoading} 
+            />
+          )}
         </main>
 
         {/* --- Results Section --- */}
@@ -88,3 +95,4 @@ export default function App() {
     </div>
   );
 }
+
