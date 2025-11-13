@@ -13,6 +13,7 @@ cffi==1.17.1
 charset-normalizer==3.4.3
 click==8.2.1
 colorama==0.4.6
+coloredlogs==15.0.1
 datasets==4.0.0
 decorator==5.2.1
 deepface==0.0.95
@@ -31,6 +32,7 @@ grpcio==1.74.0
 gunicorn==23.0.0
 h5py==3.14.0
 huggingface-hub==0.34.4
+humanfriendly==10.0
 idna==3.10
 itsdangerous==2.2.0
 Jinja2==3.1.6
@@ -55,6 +57,7 @@ namex==0.1.0
 networkx==3.4.2
 numba==0.61.2
 numpy==2.1.3
+onnxruntime==1.23.2
 opencv-python==4.12.0.88
 opt_einsum==3.4.0
 optree==0.17.0
@@ -68,6 +71,7 @@ protobuf==5.29.5
 pyarrow==21.0.0
 pycparser==2.22
 Pygments==2.19.2
+pyreadline3==3.5.4
 PySocks==1.7.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1

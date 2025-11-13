@@ -1,49 +1,133 @@
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from transformers import pipeline
+import re
 
-def map_sentiment_to_mood(sentiment_scores):
-    """
-    Maps VADER sentiment scores to our project's specific mood labels.
-    """
-    compound_score = sentiment_scores['compound']
+class ImprovedTextAnalyzer:
+    def __init__(self):
+        self.vader = SentimentIntensityAnalyzer()
+        # Load a more sophisticated emotion classifier
+        try:
+            self.emotion_classifier = pipeline(
+                "text-classification",
+                model="j-hartmann/emotion-english-distilroberta-base",
+                top_k=None
+            )
+            self.use_transformer = True
+        except Exception as e:
+            print(f"Warning: Could not load transformer model: {e}")
+            self.use_transformer = False
     
-    # This logic is a starting point. We can refine it later!
-    if compound_score >= 0.5:
-        # Strong positive sentiment
-        return "energetic" 
-    elif compound_score > 0.05:
-        # Mildly positive sentiment
-        return "happy"
-    elif compound_score < -0.5:
-        # Strong negative sentiment
-        return "angry"
-    elif compound_score < -0.05:
-        # Mildly negative sentiment
-        return "sad"
-    else:
-        # Neutral sentiment
-        return "calm"
+    def preprocess_text(self, text):
+        """Clean and normalize text."""
+        # Remove extra whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        # Handle common emoticons
+        text = text.replace(':)', 'happy').replace(':(', 'sad')
+        text = text.replace(':D', 'very happy').replace(':/','confused')
+        return text
+    
+    def map_emotion_to_mood(self, emotion_scores):
+        """
+        Maps emotion labels to standardized moods with better granularity.
+        """
+        # Emotion to mood mapping
+        emotion_map = {
+            'joy': 'happy',
+            'happiness': 'happy',
+            'sadness': 'sad',
+            'anger': 'angry',
+            'fear': 'calm',  # Calm music can help with fear
+            'surprise': 'energetic',
+            'neutral': 'calm',
+            'disgust': 'angry'
+        }
+        
+        if isinstance(emotion_scores, list):
+            # Get top emotion
+            top_emotion = max(emotion_scores, key=lambda x: x['score'])
+            emotion_label = top_emotion['label'].lower()
+            return emotion_map.get(emotion_label, 'calm')
+        
+        return 'calm'
+    
+    def analyze_with_vader(self, text):
+        """Analyze using VADER sentiment."""
+        scores = self.vader.polarity_scores(text)
+        compound = scores['compound']
+        
+        # Enhanced mapping logic
+        if compound >= 0.7:
+            return "energetic"
+        elif compound >= 0.3:
+            return "happy"
+        elif compound <= -0.7:
+            return "angry"
+        elif compound <= -0.3:
+            return "sad"
+        else:
+            return "calm"
+    
+    def analyze_text_mood(self, text):
+        """
+        Main analysis function with hybrid approach.
+        """
+        text = self.preprocess_text(text)
+        
+        if len(text.strip()) < 3:
+            return "calm"
+        
+        # Use transformer model if available
+        if self.use_transformer:
+            try:
+                emotions = self.emotion_classifier(text)[0]
+                mood_transformer = self.map_emotion_to_mood(emotions)
+                print(f"Transformer detected: {mood_transformer}")
+                
+                # Get VADER for validation
+                mood_vader = self.analyze_with_vader(text)
+                print(f"VADER detected: {mood_vader}")
+                
+                # If both agree or transformer is highly confident, use transformer
+                top_score = max(emotions, key=lambda x: x['score'])['score']
+                if mood_transformer == mood_vader or top_score > 0.7:
+                    return mood_transformer
+                else:
+                    # Average approach for disagreement
+                    return mood_vader
+                    
+            except Exception as e:
+                print(f"Transformer analysis failed: {e}")
+                return self.analyze_with_vader(text)
+        else:
+            return self.analyze_with_vader(text)
+
+# NO global analyzer instance here. 
+# ai_server.py will create its own instance.
 
 def analyze_text_mood(text):
     """
-    Analyzes a piece of text and returns a standardized mood.
+    Wrapper function for compatibility with old code.
+    DEPRECATED: Create an instance of ImprovedTextAnalyzer instead.
     """
-    # 1. Create a SentimentIntensityAnalyzer object.
-    analyzer = SentimentIntensityAnalyzer()
-    
-    # 2. Get the polarity scores
-    sentiment_scores = analyzer.polarity_scores(text)
-    print(f"Analyzing text: '{text}'")
-    print(f"VADER Scores: {sentiment_scores}")
-    
-    # 3. Map scores to a mood label
-    mood = map_sentiment_to_mood(sentiment_scores)
-    print(f"Detected Mood: {mood}\n")
-    return mood
+    print("WARNING: Using deprecated analyze_text_mood function.")
+    if not hasattr(analyze_text_mood, "analyzer"):
+         analyze_text_mood.analyzer = ImprovedTextAnalyzer() # Lazy load
+    return analyze_text_mood.analyzer.analyze_text_mood(text)
 
-# --- Example Usage ---
+
 if __name__ == "__main__":
-    analyze_text_mood("Today was an absolutely fantastic and wonderful day!")
-    analyze_text_mood("I'm feeling pretty good about the project.")
-    analyze_text_mood("I'm not sure how I feel about this situation.")
-    analyze_text_mood("This is really frustrating and I am so angry.")
-    analyze_text_mood("I'm feeling quite down and melancholic today.")
+    # Test by creating a local instance
+    print("Testing ImprovedTextAnalyzer...")
+    local_analyzer = ImprovedTextAnalyzer()
+    
+    test_texts = [
+        "Today was an absolutely fantastic and wonderful day!",
+        "I'm feeling quite down and melancholic today.",
+        "WOW! This is amazing! I can't believe it! :D",
+        "This is really frustrating and I am so angry."
+    ]
+    
+    for text in test_texts:
+        print(f"\nText: '{text}'")
+        mood = local_analyzer.analyze_text_mood(text)
+        print(f"Final Mood: {mood}\n" + "="*60)
