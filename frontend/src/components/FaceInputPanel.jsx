@@ -1,3 +1,4 @@
+// frontend/src/components/FaceInputPanel.jsx
 import { useState, useRef, useEffect } from 'react';
 import { FaCamera, FaVideo, FaStop } from 'react-icons/fa';
 
@@ -9,38 +10,47 @@ export default function FaceInputPanel({ getRecommendations, isLoading }) {
   const streamRef = useRef(null);
   const canvasRef = useRef(null);
 
+  // --- THIS EFFECT IS NEW/MODIFIED ---
+  // It handles starting and stopping the camera stream
   useEffect(() => {
-    return () => {
-      // Cleanup: stop camera when component unmounts
-      stopCamera();
-    };
-  }, []);
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 640, height: 480 }
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setCameraActive(true);
+    // This function runs when cameraActive becomes true
+    const enableStream = async () => {
+      if (cameraActive) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: 640, height: 480 }
+          });
+          streamRef.current = stream;
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        } catch (error) {
+          console.error('Error accessing camera:', error);
+          alert('Could not access camera. Please grant permission and ensure camera is available.');
+          setCameraActive(false); // Reset on error
+        }
       }
-    } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Could not access camera. Please grant permission and ensure camera is available.');
-    }
+    };
+
+    enableStream();
+
+    // Cleanup function: This runs when component unmounts OR cameraActive becomes false
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [cameraActive]); // Dependency array: re-run when cameraActive changes
+
+  // --- THIS FUNCTION IS MODIFIED ---
+  // startCamera now just changes the state, the useEffect handles the logic
+  const startCamera = () => {
+    setCapturedImage(null); // Ensure we're not showing an old image
+    setCameraActive(true);
   };
 
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
     setCameraActive(false);
   };
 
@@ -71,14 +81,14 @@ export default function FaceInputPanel({ getRecommendations, isLoading }) {
       
       canvas.toBlob((blob) => {
         setCapturedImage(blob);
-        stopCamera();
+        stopCamera(); // Turn off camera after taking photo
       }, 'image/jpeg', 0.95);
     }
   };
 
   const retakePhoto = () => {
     setCapturedImage(null);
-    startCamera();
+    startCamera(); // Re-enable the camera
   };
 
   const handleSubmit = async (e) => {

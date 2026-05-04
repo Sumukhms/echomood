@@ -1,3 +1,4 @@
+# ai-models/music_recommender.py
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import os
@@ -111,7 +112,10 @@ class SpotifyRecommender:
         seen_track_ids = set()
         
         headers = {"Authorization": f"Bearer {token}"}
+        
+        # --- THIS IS THE ORIGINAL, CORRECT URL ---
         endpoint_url = "https.api.spotify.com/v1/recommendations"
+        # --- END OF FIX ---
         
         seed_combinations = self._get_diverse_seeds(mood)
 

@@ -60,3 +60,5 @@ Thumbs.db
 
 # JetBrains (PyCharm, WebStorm, etc.)
 .idea/
+
+.cache
