@@ -142,6 +142,16 @@ def stream_vault_audio(filename):
     """This route allows React to actually play the .mp3 files stored on your server"""
     return send_from_directory(app.config['VAULT_FOLDER'], filename)
 
+@app.route('/api/vault/tracks', methods=['GET'])
+def get_vault_tracks():
+    """Returns all vault tracks for the currently hardcoded user."""
+    user_id = 'admin_user_01'
+    tracks = db_manager.get_user_tracks(user_id)
+    return jsonify({
+        'success': True,
+        'tracks': tracks
+    })
+
 if __name__ == '__main__':
     print("Starting VIP AI Server on port 5000...")
     app.run(port=5000, debug=True)

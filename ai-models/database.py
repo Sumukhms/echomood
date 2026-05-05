@@ -53,3 +53,8 @@ class MongoManager:
         }
         self.personal_tracks.insert_one(track_data)
         return True
+
+    def get_user_tracks(self, user_id):
+        """Fetches all uploaded tracks for a specific user."""
+        tracks = list(self.personal_tracks.find({"user_id": user_id}, {"_id": 0}))
+        return tracks

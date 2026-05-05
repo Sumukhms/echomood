@@ -3,6 +3,7 @@ import VoiceInputPanel from './components/VoiceInputPanel';
 import SongCard from './components/SongCard';
 import Onboarding from './components/Onboarding'; // <-- IMPORT THE NEW COMPONENT
 import VaultUpload from './components/VaultUpload';
+import VaultGallery from './components/VaultGallery';
 
 function App() {
   const [systemActive, setSystemActive] = useState(false);
@@ -69,20 +70,10 @@ function App() {
       <div className="flex justify-center mb-8">
         <VaultUpload />
       </div>
-      <div className="border rounded-3xl border-white/10 bg-white/5 backdrop-blur-xl p-6">
-        <div className="mb-6">
-          <p className="text-xs tracking-widest text-zinc-500 uppercase mb-2">Personal Vault Library</p>
-          <h3 className="font-serif text-2xl text-white">Saved Tracks</h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((item) => (
-            <div key={item} className="p-4 border rounded-2xl border-white/10 bg-black/20">
-              <p className="text-sm text-zinc-300">Track slot {item}</p>
-              <p className="text-xs text-zinc-500 mt-2">MongoDB-connected songs will appear here.</p>
-            </div>
-          ))}
-        </div>
+      <div className="w-full max-w-5xl mx-auto mb-8">
+        <div className="h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent" />
       </div>
+      <VaultGallery />
     </div>
   );
 
