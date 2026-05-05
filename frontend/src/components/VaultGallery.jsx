@@ -26,6 +26,8 @@ export default function VaultGallery({ onPlayTrack }) {
     fetchVaultTracks();
   }, []);
 
+  const localTracks = tracks.filter((track) => !track.is_external);
+
   return (
     <div className="w-full border rounded-3xl border-white/10 bg-white/5 backdrop-blur-xl p-6">
       <div className="mb-6">
@@ -103,7 +105,7 @@ export default function VaultGallery({ onPlayTrack }) {
                 </>
               ) : (
                 <button
-                  onClick={() => onPlayTrack && onPlayTrack(track)}
+                  onClick={() => onPlayTrack && onPlayTrack(track, localTracks)}
                   className="w-full py-2 mt-auto text-xs tracking-widest uppercase rounded-xl border border-gold-500/50 text-gold-300 hover:bg-gold-500/20 transition-all"
                 >
                   Play

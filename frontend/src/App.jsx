@@ -14,7 +14,8 @@ function App() {
   const [recommendedTracks, setRecommendedTracks] = useState([]);
   const [activeTab, setActiveTab] = useState('ai-dj');
   const [aiInputMode, setAiInputMode] = useState('voice');
-  const [currentTrack, setCurrentTrack] = useState(null);
+  const [queue, setQueue] = useState([]);
+  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   
   // NEW: Store user profile data
   const [userProfile, setUserProfile] = useState(null);
@@ -34,6 +35,24 @@ function App() {
   const resetSystem = () => {
     setDetectedMood(null);
     setRecommendedTracks([]);
+  };
+
+  const playTrack = (trackList, startIndex) => {
+    if (!Array.isArray(trackList) || trackList.length === 0) return;
+    const safeStartIndex = Math.max(0, Math.min(startIndex, trackList.length - 1));
+    setQueue(trackList);
+    setCurrentTrackIndex(safeStartIndex);
+  };
+
+  const playNext = () => {
+    setCurrentTrackIndex((prevIndex) => {
+      if (queue.length === 0) return 0;
+      return Math.min(prevIndex + 1, queue.length - 1);
+    });
+  };
+
+  const playPrevious = () => {
+    setCurrentTrackIndex((prevIndex) => Math.max(prevIndex - 1, 0));
   };
 
   const isDashboardActive = systemActive === true;
@@ -108,7 +127,17 @@ function App() {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {recommendedTracks.map((track, index) => (
-            <SongCard key={index} track={track} />
+            <SongCard
+              key={index}
+              track={track}
+              onPlay={(clickedTrack, fullTrackList) => {
+                const selectedIndex = fullTrackList.findIndex(
+                  (listTrack) => listTrack.preview_url === clickedTrack.preview_url
+                );
+                playTrack(fullTrackList, selectedIndex >= 0 ? selectedIndex : 0);
+              }}
+              recommendedTracks={recommendedTracks}
+            />
           ))}
         </div>
       </div>
@@ -123,7 +152,14 @@ function App() {
       <div className="w-full max-w-5xl mx-auto mb-8">
         <div className="h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent" />
       </div>
-      <VaultGallery onPlayTrack={setCurrentTrack} />
+      <VaultGallery
+        onPlayTrack={(clickedTrack, fullLocalTracks) => {
+          const selectedIndex = fullLocalTracks.findIndex(
+            (listTrack) => listTrack.file_url === clickedTrack.file_url
+          );
+          playTrack(fullLocalTracks, selectedIndex >= 0 ? selectedIndex : 0);
+        }}
+      />
     </div>
   );
 
@@ -203,7 +239,12 @@ function App() {
           </div>
         )}
       </div>
-      <GlobalPlayer currentTrack={currentTrack} />
+      <GlobalPlayer
+        queue={queue}
+        currentTrackIndex={currentTrackIndex}
+        playNext={playNext}
+        playPrevious={playPrevious}
+      />
     </div>
   )
 }

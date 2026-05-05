@@ -7,16 +7,18 @@ function formatTime(totalSeconds) {
   return `${minutes}:${seconds}`;
 }
 
-export default function GlobalPlayer({ currentTrack }) {
+export default function GlobalPlayer({ queue, currentTrackIndex, playNext, playPrevious }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const currentTrack = queue[currentTrackIndex];
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack?.file_url) return;
 
+    setCurrentTime(0);
     audio.load();
     audio
       .play()
@@ -48,6 +50,10 @@ export default function GlobalPlayer({ currentTrack }) {
   };
 
   const hasTrack = Boolean(currentTrack?.file_url);
+  const canSkipBack = currentTrackIndex > 0;
+  const canSkipForward = currentTrackIndex < queue.length - 1;
+
+  if (!queue.length) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-white/10 bg-black/45 backdrop-blur-2xl">
@@ -56,7 +62,10 @@ export default function GlobalPlayer({ currentTrack }) {
         src={currentTrack?.file_url || ''}
         onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime || 0)}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          playNext();
+        }}
       />
 
       <div className="max-w-6xl mx-auto px-4 py-3">
@@ -75,11 +84,25 @@ export default function GlobalPlayer({ currentTrack }) {
 
           <div className="flex items-center gap-3 md:w-[60%]">
             <button
+              onClick={playPrevious}
+              disabled={!canSkipBack}
+              className="px-3 py-2 text-xs tracking-widest uppercase rounded-full border border-white/20 text-zinc-300 hover:bg-white/10 disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
               onClick={togglePlayback}
               disabled={!hasTrack}
               className="px-4 py-2 text-xs tracking-widest uppercase rounded-full border border-gold-500/50 text-gold-300 hover:bg-gold-500/20 disabled:opacity-40"
             >
               {isPlaying ? 'Pause' : 'Play'}
+            </button>
+            <button
+              onClick={playNext}
+              disabled={!canSkipForward}
+              className="px-3 py-2 text-xs tracking-widest uppercase rounded-full border border-white/20 text-zinc-300 hover:bg-white/10 disabled:opacity-40"
+            >
+              Next
             </button>
             <span className="text-xs text-zinc-400 w-10 text-right">{formatTime(currentTime)}</span>
             <input

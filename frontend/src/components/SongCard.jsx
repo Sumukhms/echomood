@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-export default function SongCard({ track }) {
+export default function SongCard({ track, onPlay, recommendedTracks = [] }) {
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -61,6 +61,12 @@ export default function SongCard({ track }) {
         <p className="text-[10px] tracking-widest uppercase text-zinc-500 mt-2">
           {isSaved ? 'Saved in Vault' : 'Tap heart to save'}
         </p>
+        <button
+          onClick={() => onPlay && onPlay(track, recommendedTracks)}
+          className="mt-3 w-full py-2 text-xs tracking-widest uppercase rounded-xl border border-gold-500/50 text-gold-300 hover:bg-gold-500/20 transition-all"
+        >
+          Play
+        </button>
       </div>
       
     </div>
