@@ -1,6 +1,10 @@
 import os
 import speech_recognition as sr
+import pydub
 from pydub import AudioSegment
+
+pydub.AudioSegment.converter = "ffmpeg.exe"
+pydub.AudioSegment.ffprobe = "ffprobe.exe"
 
 class VoiceEmotionAnalyzer:
     # We keep device_id here just so ai_server.py doesn't crash when it tries to pass it!

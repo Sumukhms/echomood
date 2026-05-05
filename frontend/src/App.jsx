@@ -2,11 +2,13 @@ import { useState } from 'react';
 import VoiceInputPanel from './components/VoiceInputPanel';
 import SongCard from './components/SongCard';
 import Onboarding from './components/Onboarding'; // <-- IMPORT THE NEW COMPONENT
+import VaultUpload from './components/VaultUpload';
 
 function App() {
   const [systemActive, setSystemActive] = useState(false);
   const [detectedMood, setDetectedMood] = useState(null);
   const [recommendedTracks, setRecommendedTracks] = useState([]);
+  const [activeTab, setActiveTab] = useState('ai-dj');
   
   // NEW: Store user profile data
   const [userProfile, setUserProfile] = useState(null);
@@ -14,6 +16,7 @@ function App() {
   const handleOnboardingComplete = (preferences) => {
     setUserProfile(preferences);
     setSystemActive(true); // Jump straight to the mic after onboarding!
+    setActiveTab('ai-dj');
   };
 
   const handleMoodDetected = (mood, tracks) => {
@@ -25,6 +28,63 @@ function App() {
     setDetectedMood(null);
     setRecommendedTracks([]);
   };
+
+  const isDashboardActive = systemActive === true;
+
+  const renderAiDjPanel = () => {
+    if (recommendedTracks.length === 0) {
+      return (
+        <div className="w-full max-w-2xl mx-auto text-center">
+          <p className="text-gold-400 text-sm mb-6">
+            Calibrated for: {userProfile.languages.join(', ')}
+          </p>
+          <VoiceInputPanel
+            userProfile={userProfile}
+            onAnalyzeComplete={(mood, tracks) => handleMoodDetected(mood, tracks)}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="w-full animate-fade-in">
+        <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
+          <div>
+            <p className="text-xs tracking-widest text-zinc-500 uppercase mb-1">Detected Frequency</p>
+            <h3 className="font-serif text-3xl text-gold-400 uppercase tracking-wider">{detectedMood}</h3>
+          </div>
+          <button onClick={resetSystem} className="px-6 py-2 text-xs tracking-widest text-white border rounded-full border-white/20 hover:bg-white/10">NEW SCAN</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {recommendedTracks.map((track, index) => (
+            <SongCard key={index} track={track} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderVaultPanel = () => (
+    <div className="w-full">
+      <div className="flex justify-center mb-8">
+        <VaultUpload />
+      </div>
+      <div className="border rounded-3xl border-white/10 bg-white/5 backdrop-blur-xl p-6">
+        <div className="mb-6">
+          <p className="text-xs tracking-widest text-zinc-500 uppercase mb-2">Personal Vault Library</p>
+          <h3 className="font-serif text-2xl text-white">Saved Tracks</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((item) => (
+            <div key={item} className="p-4 border rounded-2xl border-white/10 bg-black/20">
+              <p className="text-sm text-zinc-300">Track slot {item}</p>
+              <p className="text-xs text-zinc-500 mt-2">MongoDB-connected songs will appear here.</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="relative min-h-screen font-sans text-zinc-200 bg-zinc-950 overflow-x-hidden">
@@ -64,36 +124,42 @@ function App() {
            <Onboarding onComplete={handleOnboardingComplete} />
         )}
 
-        {/* State 3: Voice Panel (Now passes userProfile to the component!) */}
-        {systemActive === true && recommendedTracks.length === 0 && (
-          <div className="w-full max-w-2xl animate-fade-in mt-12 text-center">
-             <p className="text-gold-400 text-sm mb-6">
-               Calibrated for: {userProfile.languages.join(', ')}
-             </p>
-             <VoiceInputPanel 
-                userProfile={userProfile} // <-- We will send this to Python next!
-                onAnalyzeComplete={(mood, tracks) => handleMoodDetected(mood, tracks)} 
-             />
-          </div>
-        )}
-
-        {/* State 4: Results Grid remains exactly the same... */}
-        {recommendedTracks.length > 0 && (
-            // ... your existing results grid code here ...
-            <div className="w-full max-w-6xl animate-fade-in">
-              <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
+        {/* State 3: Main Dashboard */}
+        {isDashboardActive && (
+          <div className="w-full max-w-6xl mt-10 animate-fade-in">
+            <div className="w-full mb-8 border border-white/10 bg-black/30 backdrop-blur-xl rounded-2xl">
+              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs tracking-widest text-zinc-500 uppercase mb-1">Detected Frequency</p>
-                  <h3 className="font-serif text-3xl text-gold-400 uppercase tracking-wider">{detectedMood}</h3>
+                  <p className="text-[11px] tracking-[0.25em] uppercase text-zinc-500">Dashboard</p>
+                  <h3 className="text-lg font-serif text-white">Your Listening Command Center</h3>
                 </div>
-                <button onClick={resetSystem} className="px-6 py-2 text-xs tracking-widest text-white border rounded-full border-white/20 hover:bg-white/10">NEW SCAN</button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {recommendedTracks.map((track, index) => (
-                  <SongCard key={index} track={track} />
-                ))}
+                <div className="inline-flex p-1 border rounded-full bg-white/5 border-white/10">
+                  <button
+                    onClick={() => setActiveTab('ai-dj')}
+                    className={`px-6 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
+                      activeTab === 'ai-dj'
+                        ? 'bg-gold-500 text-black'
+                        : 'text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    AI DJ
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('vault')}
+                    className={`px-6 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
+                      activeTab === 'vault'
+                        ? 'bg-gold-500 text-black'
+                        : 'text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    Personal Vault
+                  </button>
+                </div>
               </div>
             </div>
+
+            {activeTab === 'ai-dj' ? renderAiDjPanel() : renderVaultPanel()}
+          </div>
         )}
       </div>
     </div>
