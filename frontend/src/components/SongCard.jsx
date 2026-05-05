@@ -9,6 +9,7 @@ export default function SongCard({
 }) {
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
 
   const handleSaveTrack = async () => {
     if (isSaved || isSaving) return;
@@ -32,7 +33,14 @@ export default function SongCard({
       setIsSaving(false);
     }
   };
-
+  const handleAddToPlaylist = async (playlistId) => {
+    await axios.post("http://127.0.0.1:5000/api/playlists/add_track", {
+      playlist_id: playlistId,
+      track: track,
+    });
+    setShowPlaylistMenu(false);
+    alert("Added to playlist!");
+  };
   return (
     <div className="relative flex flex-col p-4 transition-all duration-500 border group bg-white/5 backdrop-blur-md border-white/10 rounded-2xl hover:bg-white/10 hover:-translate-y-1 hover:shadow-[0_10px_30px_rgba(212,175,55,0.15)]">
       {/* YouTube iframe Container */}
@@ -77,6 +85,29 @@ export default function SongCard({
         >
           Play
         </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowPlaylistMenu(!showPlaylistMenu)}
+            className="p-2 bg-white/10 rounded-full hover:bg-white/20 text-white"
+          >
+            +
+          </button>
+
+          {showPlaylistMenu && (
+            <div className="absolute bottom-full right-0 mb-2 w-48 bg-zinc-900 border border-white/10 rounded-lg shadow-xl z-50 p-2">
+              <p className="text-xs text-zinc-500 mb-2 px-2">Add to Playlist</p>
+              {userPlaylists.map((p) => (
+                <button
+                  key={p._id}
+                  onClick={() => handleAddToPlaylist(p._id)}
+                  className="w-full text-left px-2 py-1 text-sm hover:bg-gold-600/20 text-white rounded"
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

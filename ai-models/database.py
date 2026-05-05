@@ -3,6 +3,7 @@ from pymongo import MongoClient
 from datetime import datetime
 from dotenv import load_dotenv
 from werkzeug.security import generate_password_hash, check_password_hash
+from bson import ObjectId
 
 load_dotenv()
 
@@ -25,6 +26,7 @@ class MongoManager:
             self.users = self.db['users']
             self.personal_tracks = self.db['personal_tracks']
             self.global_library = self.db['global_library']
+            self.playlists = self.db['playlists']
             
         except Exception as e:
             print(f"🔴 MongoDB Connection Failed: {e}")
@@ -194,3 +196,33 @@ class MongoManager:
         ).limit(15))
         
         return results
+    
+    def create_playlist(self, user_id, name):
+        """Creates a new playlist for a user."""
+        playlist = {
+            "user_id": user_id,
+            "name": name,
+            "tracks": [],
+            "created_at": ObjectId().get_inc() # Using ObjectId for timestamping
+        }
+        return self.playlists.insert_one(playlist).inserted_id
+
+    def add_track_to_playlist(self, playlist_id, track_data):
+        """Adds a track (local or external) to a specific playlist."""
+        # Ensure is_external flag is preserved
+        track_to_add = {
+            "track_name": track_data.get("track_name"),
+            "artist_name": track_data.get("artist_name"),
+            "file_url": track_data.get("file_url") or track_data.get("preview_url"),
+            "is_external": track_data.get("is_external", False),
+            "mood_tags": track_data.get("mood_tags", [])
+        }
+        return self.playlists.update_one(
+            {"_id": ObjectId(playlist_id)},
+            {"$push": {"tracks": track_to_add}}
+        )
+
+    def get_user_playlists(self, user_id):
+        """Fetches all playlists owned by a user."""
+        results = self.playlists.find({"user_id": user_id})
+        return [{**p, "_id": str(p["_id"])} for p in results]

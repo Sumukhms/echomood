@@ -9,6 +9,7 @@ import VaultGallery from "./components/VaultGallery";
 import GlobalPlayer from "./components/GlobalPlayer";
 import AuthScreen from "./components/AuthScreen";
 import Home from "./components/Home";
+import Sidebar from "./components/Sidebar";
 
 function App() {
   const [systemActive, setSystemActive] = useState(false);
@@ -19,6 +20,7 @@ function App() {
   const [queue, setQueue] = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
+  const [activePlaylist, setActivePlaylist] = useState(null);
 
   // NEW: Store user profile data
   const [userProfile, setUserProfile] = useState(null);

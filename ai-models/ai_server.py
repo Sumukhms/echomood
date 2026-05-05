@@ -315,6 +315,28 @@ def search_library():
         'results': results,
         'query': query
     })
+    
+@app.route('/api/playlists/create', methods=['POST'])
+def create_user_playlist():
+    data = request.json
+    username = data.get('username')
+    name = data.get('name', 'New Playlist')
+    playlist_id = db_manager.create_playlist(username, name)
+    return jsonify({"success": True, "playlist_id": str(playlist_id)})
+
+@app.route('/api/playlists/add_track', methods=['POST'])
+def add_to_playlist():
+    data = request.json
+    playlist_id = data.get('playlist_id')
+    track_data = data.get('track')
+    db_manager.add_track_to_playlist(playlist_id, track_data)
+    return jsonify({"success": True, "message": "Added to playlist"})
+
+@app.route('/api/playlists/all', methods=['GET'])
+def fetch_playlists():
+    username = request.args.get('username')
+    playlists = db_manager.get_user_playlists(username)
+    return jsonify(playlists)
 
 if __name__ == '__main__':
     print("Starting VIP AI Server on port 5000...")
