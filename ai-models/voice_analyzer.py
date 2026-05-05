@@ -28,7 +28,47 @@ class VoiceEmotionAnalyzer:
             'party': ['party', 'club', 'dance', 'dj', 'weekend', 'lit', 'crazy', 'celebration', 'drinks'],
             'sleepy': ['sleep', 'tired', 'bed', 'dream', 'nap', 'lullaby', 'snooze', 'night']
         }
+        self.nsfw_blacklist = ['porn', 'sex', 'fuck', 'shit', 'bitch', 'ass', 'dick', 'nude']
         print("Semantic Analyzer Online.")
+
+    def _analyze_transcription(self, transcription):
+        words = transcription.split()
+
+        if any(bad_word in words for bad_word in self.nsfw_blacklist):
+            print("🚨 SAFETY ALERT: Inappropriate content detected. Blocking request.")
+            return 'blocked'
+
+        detected_mood = 'calm'  # Default fallback
+        highest_score = 0
+        scores = {mood: 0 for mood in self.mood_keywords}
+
+        for word in words:
+            for mood, keywords in self.mood_keywords.items():
+                if word in keywords:
+                    scores[mood] += 1
+
+        # Find the mood with the most keyword hits
+        for mood, score in scores.items():
+            if score > highest_score:
+                highest_score = score
+                detected_mood = mood
+
+        if highest_score > 0:
+            print(f"🎯 Command Detected: {detected_mood.upper()} (Keyword Score: {highest_score})")
+        else:
+            print("⚠️ No strong keywords detected. Defaulting to CALM.")
+
+        return detected_mood
+
+    def analyze_text(self, text: str):
+        """Analyzes direct text input using the same safety and mood scoring logic as voice."""
+        transcription = (text or '').lower().strip()
+        if not transcription:
+            print("⚠️ Empty text input. Defaulting to CALM.")
+            return 'calm'
+
+        print(f"📝 Text received: \"{transcription}\"")
+        return self._analyze_transcription(transcription)
 
     def analyze_file(self, file_path):
         """
@@ -54,40 +94,7 @@ class VoiceEmotionAnalyzer:
                 print("🧠 Transcribing audio to text...")
                 transcription = self.recognizer.recognize_google(audio_data).lower()
                 print(f"📝 You said: \"{transcription}\"")
-                
-                # --- NEW SAFETY FILTER ---
-                nsfw_blacklist = ['porn', 'sex', 'fuck', 'shit', 'bitch', 'ass', 'dick', 'nude']
-                words = transcription.split()
-                
-                if any(bad_word in words for bad_word in nsfw_blacklist):
-                    print("🚨 SAFETY ALERT: Inappropriate content detected. Blocking request.")
-                    return 'blocked'
-                # -------------------------
-                
-                # 4. Keyword Scoring Engine
-                detected_mood = 'calm' # Default fallback
-                highest_score = 0
-                scores = {mood: 0 for mood in self.mood_keywords}
-                
-                words = transcription.split()
-                
-                for word in words:
-                    for mood, keywords in self.mood_keywords.items():
-                        if word in keywords:
-                            scores[mood] += 1
-                
-                # Find the mood with the most keyword hits
-                for mood, score in scores.items():
-                    if score > highest_score:
-                        highest_score = score
-                        detected_mood = mood
-                        
-                if highest_score > 0:
-                    print(f"🎯 Command Detected: {detected_mood.upper()} (Keyword Score: {highest_score})")
-                else:
-                    print("⚠️ No strong keywords detected. Defaulting to CALM.")
-                    
-                return detected_mood
+                return self._analyze_transcription(transcription)
                 
             except sr.UnknownValueError:
                 print("⚠️ Could not understand the audio (too quiet/muffled). Defaulting to CALM.")

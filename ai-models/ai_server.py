@@ -100,6 +100,39 @@ def analyze_voice():
         "tracks": songs
     })
 
+@app.route('/api/analyze/text', methods=['POST'])
+def analyze_text():
+    payload = request.get_json(silent=True) or {}
+    text = (payload.get('text') or '').strip()
+    user_languages = payload.get('languages', ['Hindi'])
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    if not isinstance(user_languages, list):
+        user_languages = ['Hindi']
+    user_languages = [str(lang).strip() for lang in user_languages if str(lang).strip()]
+    if not user_languages:
+        user_languages = ['Hindi']
+
+    detected_mood = voice_analyzer.analyze_text(text)
+
+    if detected_mood == 'blocked':
+        return jsonify({
+            "status": "success",
+            "detected_mood": "CONTENT BLOCKED",
+            "tracks": []
+        })
+
+    print(f"🎵 Fetching {detected_mood} soundscapes in {', '.join(user_languages)}...")
+    songs = recommender.get_recommendations(detected_mood, languages=user_languages, limit=6)
+
+    return jsonify({
+        "status": "success",
+        "detected_mood": detected_mood,
+        "tracks": songs
+    })
+
 # ==========================================
 # 2. THE PERSONAL VAULT (MONGODB) PIPELINE
 # ==========================================

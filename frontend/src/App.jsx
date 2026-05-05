@@ -1,15 +1,19 @@
 import { useState } from 'react';
 import VoiceInputPanel from './components/VoiceInputPanel';
+import TextInputPanel from './components/TextInputPanel';
 import SongCard from './components/SongCard';
 import Onboarding from './components/Onboarding'; // <-- IMPORT THE NEW COMPONENT
 import VaultUpload from './components/VaultUpload';
 import VaultGallery from './components/VaultGallery';
+import GlobalPlayer from './components/GlobalPlayer';
 
 function App() {
   const [systemActive, setSystemActive] = useState(false);
   const [detectedMood, setDetectedMood] = useState(null);
   const [recommendedTracks, setRecommendedTracks] = useState([]);
   const [activeTab, setActiveTab] = useState('ai-dj');
+  const [aiInputMode, setAiInputMode] = useState('voice');
+  const [currentTrack, setCurrentTrack] = useState(null);
   
   // NEW: Store user profile data
   const [userProfile, setUserProfile] = useState(null);
@@ -18,6 +22,7 @@ function App() {
     setUserProfile(preferences);
     setSystemActive(true); // Jump straight to the mic after onboarding!
     setActiveTab('ai-dj');
+    setAiInputMode('voice');
   };
 
   const handleMoodDetected = (mood, tracks) => {
@@ -39,10 +44,39 @@ function App() {
           <p className="text-gold-400 text-sm mb-6">
             Calibrated for: {userProfile.languages.join(', ')}
           </p>
-          <VoiceInputPanel
-            userProfile={userProfile}
-            onAnalyzeComplete={(mood, tracks) => handleMoodDetected(mood, tracks)}
-          />
+          <div className="inline-flex p-1 border rounded-full bg-white/5 border-white/10 mb-5">
+            <button
+              onClick={() => setAiInputMode('voice')}
+              className={`px-5 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
+                aiInputMode === 'voice'
+                  ? 'bg-gold-500 text-black'
+                  : 'text-zinc-300 hover:text-white'
+              }`}
+            >
+              Voice Mode
+            </button>
+            <button
+              onClick={() => setAiInputMode('text')}
+              className={`px-5 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
+                aiInputMode === 'text'
+                  ? 'bg-gold-500 text-black'
+                  : 'text-zinc-300 hover:text-white'
+              }`}
+            >
+              Text Mode
+            </button>
+          </div>
+          {aiInputMode === 'voice' ? (
+            <VoiceInputPanel
+              userProfile={userProfile}
+              onAnalyzeComplete={(mood, tracks) => handleMoodDetected(mood, tracks)}
+            />
+          ) : (
+            <TextInputPanel
+              userProfile={userProfile}
+              onAnalyzeComplete={(mood, tracks) => handleMoodDetected(mood, tracks)}
+            />
+          )}
         </div>
       );
     }
@@ -73,12 +107,12 @@ function App() {
       <div className="w-full max-w-5xl mx-auto mb-8">
         <div className="h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent" />
       </div>
-      <VaultGallery />
+      <VaultGallery onPlayTrack={setCurrentTrack} />
     </div>
   );
 
   return (
-    <div className="relative min-h-screen font-sans text-zinc-200 bg-zinc-950 overflow-x-hidden">
+    <div className="relative min-h-screen font-sans text-zinc-200 bg-zinc-950 overflow-x-hidden pb-28">
       
       {/* Background stays the same... */}
       <div 
@@ -153,6 +187,7 @@ function App() {
           </div>
         )}
       </div>
+      <GlobalPlayer currentTrack={currentTrack} />
     </div>
   )
 }

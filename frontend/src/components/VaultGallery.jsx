@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 
-export default function VaultGallery() {
+export default function VaultGallery({ onPlayTrack }) {
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -78,9 +78,12 @@ export default function VaultGallery() {
                 ))}
               </div>
 
-              <audio controls src={track.file_url} className="w-full" preload="none">
-                Your browser does not support the audio element.
-              </audio>
+              <button
+                onClick={() => onPlayTrack && onPlayTrack(track)}
+                className="w-full py-2 mt-auto text-xs tracking-widest uppercase rounded-xl border border-gold-500/50 text-gold-300 hover:bg-gold-500/20 transition-all"
+              >
+                Play
+              </button>
             </div>
           ))}
         </div>
