@@ -1,70 +1,28 @@
-import { useState, useEffect, useRef } from 'react';
-import { FaSpotify, FaPlay, FaPause } from 'react-icons/fa';
-
-export default function SongCard({ song }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const audioRef = useRef(null);
-
-  // Create the Audio object on mount
-  useEffect(() => {
-    if (song.preview_url) {
-      audioRef.current = new Audio(song.preview_url);
-      audioRef.current.addEventListener('ended', () => setIsPlaying(false));
-    }
-    // Cleanup on unmount
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, [song.preview_url]);
-
-  const togglePlay = () => {
-    if (!audioRef.current) return;
-
-    if (isPlaying) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play();
-    }
-    setIsPlaying(!isPlaying);
-  };
-
+export default function SongCard({ track }) {
   return (
-    <div className="bg-black bg-opacity-40 p-4 rounded-lg shadow-lg flex items-center gap-4 transition-transform hover:scale-[1.03]">
-      {song.preview_url && (
-        <button
-          onClick={togglePlay}
-          className="w-12 h-12 flex-shrink-0 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center text-white"
-        >
-          {isPlaying ? <FaPause /> : <FaPlay />}
-        </button>
-      )}
-      {!song.preview_url && (
-        <div className="w-12 h-12 flex-shrink-0 rounded-full bg-gray-600 flex items-center justify-center text-gray-400" title="No preview available">
-          <FaPlay />
-        </div>
-      )}
+    <div className="relative flex flex-col p-4 transition-all duration-500 border group bg-white/5 backdrop-blur-md border-white/10 rounded-2xl hover:bg-white/10 hover:-translate-y-1 hover:shadow-[0_10px_30px_rgba(212,175,55,0.15)]">
       
-      <div className="min-w-0">
-        <h4 className="font-bold truncate" title={song.track_name}>
-          {song.track_name}
+      {/* YouTube iframe Container */}
+      <div className="relative w-full overflow-hidden aspect-video rounded-xl bg-zinc-900">
+        <iframe
+          src={track.preview_url}
+          title={track.track_name}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          className="absolute inset-0 w-full h-full border-0"
+        ></iframe>
+      </div>
+
+      {/* Track Info */}
+      <div className="pt-4 pb-2 text-left">
+        <h4 className="font-serif text-lg text-white truncate line-clamp-1 group-hover:text-gold-400 transition-colors">
+          {track.track_name}
         </h4>
-        <p className="text-sm opacity-80 truncate" title={song.artist_name}>
-          {song.artist_name}
+        <p className="text-sm font-light text-zinc-400 truncate mt-0.5">
+          {track.artist_name}
         </p>
       </div>
       
-      <a
-        href={song.external_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Listen on Spotify"
-        className="ml-auto text-green-400 hover:text-green-300 flex-shrink-0"
-      >
-        <FaSpotify size={24} />
-      </a>
     </div>
   );
 }

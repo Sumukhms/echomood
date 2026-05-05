@@ -1,150 +1,140 @@
-import { useState, useRef } from 'react';
-import { FaMicrophone, FaStop, FaTrash } from 'react-icons/fa';
+import { useState, useRef } from "react";
+import axios from "axios";
 
-export default function VoiceInputPanel({ getRecommendations, isLoading }) {
+export default function VoiceInputPanel({ userProfile, onAnalyzeComplete }) {
   const [isRecording, setIsRecording] = useState(false);
-  const [audioBlob, setAudioBlob] = useState(null);
-  const [recordingTime, setRecordingTime] = useState(0);
+  const [statusText, setStatusText] = useState("Press to speak your mind");
+
+  // These references hold our recording data behind the scenes
   const mediaRecorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const timerRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      chunksRef.current = [];
+  const handleRecordClick = async () => {
+    if (!isRecording) {
+      try {
+        // 1. Ask the user for microphone permission
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
 
-      mediaRecorderRef.current.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
-      };
+        // 2. Set up the recorder
+        const mediaRecorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = []; // Clear old recordings
 
-      mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        setAudioBlob(blob);
-        stream.getTracks().forEach(track => track.stop());
-      };
+        // 3. Every time we get a chunk of audio, save it
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
 
-      mediaRecorderRef.current.start();
-      setIsRecording(true);
-      setRecordingTime(0);
+        // 4. What happens when we hit "stop"
+        mediaRecorder.onstop = async () => {
+          setStatusText("Analyzing vocal resonance...");
 
-      // Start timer
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
+          // Package the audio chunks into a single file (Blob)
+          const audioBlob = new Blob(audioChunksRef.current, {
+            type: "audio/webm",
+          });
 
-    } catch (error) {
-      console.error('Error accessing microphone:', error);
-      alert('Could not access microphone. Please grant permission.');
-    }
-  };
+          // Create a form to send to Python
+          const formData = new FormData();
+          formData.append("audio", audioBlob, "recording.webm");
+          if (userProfile && userProfile.languages) {
+            formData.append("languages", userProfile.languages.join(","));
+          }
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
+          try {
+            // Send it to our new Python endpoint!
+            const response = await axios.post(
+              "http://127.0.0.1:5000/api/analyze/voice",
+              formData,
+              {
+                headers: { "Content-Type": "multipart/form-data" },
+              },
+            );
+
+            setStatusText("Vibe detected.");
+            if (onAnalyzeComplete)
+              onAnalyzeComplete(
+                response.data.detected_mood,
+                response.data.tracks,
+              );
+          } catch (error) {
+            console.error("Upload failed", error);
+            setStatusText("Error communicating with AI Brain.");
+          }
+        };
+
+        // Start recording!
+        mediaRecorder.start();
+        setIsRecording(true);
+        setStatusText("Listening... Click again to stop.");
+      } catch (err) {
+        console.error("Mic access denied", err);
+        setStatusText("Microphone access required.");
+      }
+    } else {
+      // If we are already recording, clicking it again STOPS the recording
       setIsRecording(false);
-      clearInterval(timerRef.current);
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        // Turn off the microphone light in the browser tab
+        mediaRecorderRef.current.stream
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
     }
-  };
-
-  const clearRecording = () => {
-    setAudioBlob(null);
-    setRecordingTime(0);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!audioBlob || isLoading) return;
-
-    const formData = new FormData();
-    formData.append('audio', audioBlob, 'recording.webm');
-
-    getRecommendations('detect-voice', formData);
-  };
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div>
-      <h3 className="text-2xl font-semibold mb-4">Record Your Voice</h3>
-      <p className="text-sm opacity-80 mb-6">
-        Speak for 5-10 seconds to let us detect your emotional tone.
-      </p>
+    <div className="flex flex-col items-center justify-center p-10 mt-8 border bg-white/5 backdrop-blur-md border-white/10 rounded-3xl shadow-2xl">
+      <h3 className="mb-8 font-serif text-2xl tracking-widest text-white uppercase">
+        Vocal Resonance
+      </h3>
 
-      <div className="flex flex-col items-center gap-6">
-        {/* Recording Controls */}
-        {!audioBlob && (
-          <div className="flex flex-col items-center gap-4">
-            <button
-              type="button"
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={isLoading}
-              className={`w-32 h-32 rounded-full flex items-center justify-center text-4xl transition-all ${
-                isRecording
-                  ? 'bg-red-600 hover:bg-red-700 animate-pulse'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } disabled:bg-gray-500 disabled:cursor-not-allowed shadow-xl`}
-            >
-              {isRecording ? <FaStop /> : <FaMicrophone />}
-            </button>
-            
-            {isRecording && (
-              <div className="text-center">
-                <div className="text-3xl font-mono">{formatTime(recordingTime)}</div>
-                <div className="text-sm opacity-80 mt-2">Recording...</div>
-              </div>
-            )}
-            
-            {!isRecording && (
-              <p className="text-center opacity-80">
-                Click the microphone to start recording
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Recorded Audio Preview */}
-        {audioBlob && !isRecording && (
-          <div className="w-full bg-gray-800 bg-opacity-70 p-6 rounded-lg">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-lg font-semibold">Recording Complete!</p>
-                <p className="text-sm opacity-80">Duration: {formatTime(recordingTime)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={clearRecording}
-                className="p-3 bg-red-600 rounded-full hover:bg-red-700 transition-colors"
-                title="Delete recording"
-              >
-                <FaTrash />
-              </button>
-            </div>
-
-            <audio
-              controls
-              src={URL.createObjectURL(audioBlob)}
-              className="w-full mb-4"
+      <button
+        onClick={handleRecordClick}
+        className={`relative flex items-center justify-center w-24 h-24 mb-8 rounded-full transition-all duration-700 border
+          ${
+            isRecording
+              ? "bg-gold-500 border-gold-400 shadow-[0_0_50px_rgba(212,175,55,0.6)] scale-110 animate-pulse"
+              : "bg-zinc-900 border-white/20 hover:border-gold-500/50 hover:shadow-[0_0_20px_rgba(212,175,55,0.2)]"
+          }`}
+      >
+        <svg
+          className={`w-8 h-8 transition-colors duration-700 ${isRecording ? "text-black" : "text-gold-500"}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {isRecording ? (
+            // Stop Icon
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
             />
+          ) : (
+            // Mic Icon
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1}
+              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+            />
+          )}
+        </svg>
+      </button>
 
-            <button
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="w-full p-4 text-lg font-bold bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-3 disabled:bg-gray-500 disabled:cursor-not-allowed"
-            >
-              <FaMicrophone />
-              {isLoading ? 'Analyzing...' : 'Analyze Voice & Get Music'}
-            </button>
-          </div>
-        )}
-      </div>
+      <p
+        className={`text-xs tracking-[0.2em] uppercase transition-colors duration-500 ${isRecording ? "text-gold-400" : "text-zinc-400"}`}
+      >
+        {statusText}
+      </p>
     </div>
   );
 }
