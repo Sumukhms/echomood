@@ -177,6 +177,25 @@ def analyze_face():
         "tracks": songs
     })
 
+@app.route('/api/vault/save_track', methods=['POST'])
+def save_api_track_to_vault():
+    payload = request.get_json(silent=True) or {}
+    track_name = (payload.get('track_name') or '').strip()
+    artist_name = (payload.get('artist_name') or '').strip()
+    preview_url = (payload.get('preview_url') or '').strip()
+    mood = (payload.get('mood') or 'calm').strip()
+
+    if not track_name or not artist_name or not preview_url:
+        return jsonify({"error": "Missing required track fields"}), 400
+
+    user_id = 'admin_user_01'
+    db_manager.save_api_track(user_id, track_name, artist_name, preview_url, mood)
+
+    return jsonify({
+        "success": True,
+        "message": "Track saved to vault"
+    })
+
 # ==========================================
 # 2. THE PERSONAL VAULT (MONGODB) PIPELINE
 # ==========================================

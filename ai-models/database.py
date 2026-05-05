@@ -41,7 +41,7 @@ class MongoManager:
         self.users.update_one({"user_id": user_id}, {"$set": user_data}, upsert=True)
         return True
 
-    def add_personal_track(self, user_id, track_name, artist_name, file_url, mood_tags):
+    def add_personal_track(self, user_id, track_name, artist_name, file_url, mood_tags, is_external=False):
         """Saves a user's uploaded song to their personal vault"""
         track_data = {
             "user_id": user_id,
@@ -49,9 +49,38 @@ class MongoManager:
             "artist_name": artist_name,
             "file_url": file_url, # Where the .mp3 is saved
             "mood_tags": mood_tags,
+            "is_external": is_external,
             "uploaded_at": datetime.utcnow()
         }
         self.personal_tracks.insert_one(track_data)
+        return True
+
+    def save_api_track(self, user_id, track_name, artist_name, preview_url, mood):
+        """Saves an external API recommendation (like YouTube) to the personal vault."""
+        mood_tags = [str(mood).strip().lower()] if str(mood).strip() else ['calm']
+
+        track_data = {
+            "user_id": user_id,
+            "track_name": track_name,
+            "artist_name": artist_name,
+            "file_url": preview_url,
+            "mood_tags": mood_tags,
+            "is_external": True,
+            "uploaded_at": datetime.utcnow()
+        }
+
+        # Avoid duplicates when users tap save repeatedly.
+        self.personal_tracks.update_one(
+            {
+                "user_id": user_id,
+                "track_name": track_name,
+                "artist_name": artist_name,
+                "file_url": preview_url,
+                "is_external": True
+            },
+            {"$setOnInsert": track_data},
+            upsert=True
+        )
         return True
 
     def get_user_tracks(self, user_id):

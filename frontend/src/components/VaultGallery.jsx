@@ -5,6 +5,7 @@ export default function VaultGallery({ onPlayTrack }) {
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeExternalTrackUrl, setActiveExternalTrackUrl] = useState('');
 
   useEffect(() => {
     const fetchVaultTracks = async () => {
@@ -78,12 +79,36 @@ export default function VaultGallery({ onPlayTrack }) {
                 ))}
               </div>
 
-              <button
-                onClick={() => onPlayTrack && onPlayTrack(track)}
-                className="w-full py-2 mt-auto text-xs tracking-widest uppercase rounded-xl border border-gold-500/50 text-gold-300 hover:bg-gold-500/20 transition-all"
-              >
-                Play
-              </button>
+              {track.is_external ? (
+                <>
+                  <button
+                    onClick={() => setActiveExternalTrackUrl(
+                      activeExternalTrackUrl === track.file_url ? '' : track.file_url
+                    )}
+                    className="w-full py-2 mt-auto text-xs tracking-widest uppercase rounded-xl border border-gold-500/50 text-gold-300 hover:bg-gold-500/20 transition-all"
+                  >
+                    {activeExternalTrackUrl === track.file_url ? 'Hide Player' : 'Play on YouTube'}
+                  </button>
+                  {activeExternalTrackUrl === track.file_url && (
+                    <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-black/30 aspect-video">
+                      <iframe
+                        src={track.file_url}
+                        title={`${track.track_name}-external-player`}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="w-full h-full border-0"
+                      />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <button
+                  onClick={() => onPlayTrack && onPlayTrack(track)}
+                  className="w-full py-2 mt-auto text-xs tracking-widest uppercase rounded-xl border border-gold-500/50 text-gold-300 hover:bg-gold-500/20 transition-all"
+                >
+                  Play
+                </button>
+              )}
             </div>
           ))}
         </div>
