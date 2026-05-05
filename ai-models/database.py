@@ -2,6 +2,7 @@ import os
 from pymongo import MongoClient
 from datetime import datetime
 from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 
@@ -23,6 +24,7 @@ class MongoManager:
             # Define our collections (Tables)
             self.users = self.db['users']
             self.personal_tracks = self.db['personal_tracks']
+            self.global_library = self.db['global_library']
             
         except Exception as e:
             print(f"🔴 MongoDB Connection Failed: {e}")
@@ -40,6 +42,46 @@ class MongoManager:
         # Upsert: Update if exists, Insert if it's new
         self.users.update_one({"user_id": user_id}, {"$set": user_data}, upsert=True)
         return True
+
+    def register_user(self, username, password):
+        """Registers a new user with a hashed password."""
+        username = (username or '').strip()
+        password = password or ''
+        if not username or not password:
+            return None
+
+        if self.users.find_one({"username": username}):
+            return None
+
+        password_hash = generate_password_hash(password)
+        user_data = {
+            "username": username,
+            "password_hash": password_hash,
+            "created_at": datetime.utcnow()
+        }
+
+        result = self.users.insert_one(user_data)
+        if result.inserted_id:
+            return {"username": username, "created_at": user_data["created_at"]}
+        return None
+
+    def verify_user(self, username, password):
+        """Verifies username/password and returns user info without the hash."""
+        username = (username or '').strip()
+        password = password or ''
+        if not username or not password:
+            return None
+
+        user = self.users.find_one({"username": username})
+        if not user or not user.get("password_hash"):
+            return None
+
+        if not check_password_hash(user["password_hash"], password):
+            return None
+
+        user.pop("password_hash", None)
+        user.pop("_id", None)
+        return user
 
     def add_personal_track(self, user_id, track_name, artist_name, file_url, mood_tags, is_external=False):
         """Saves a user's uploaded song to their personal vault"""
@@ -87,3 +129,68 @@ class MongoManager:
         """Fetches all uploaded tracks for a specific user."""
         tracks = list(self.personal_tracks.find({"user_id": user_id}, {"_id": 0}))
         return tracks
+
+    def seed_library(self, track_name, artist_name, preview_url, mood, language, category):
+        """Seeds the global library with a track, preventing duplicates by track_name and artist_name."""
+        track_data = {
+            "track_name": track_name,
+            "artist_name": artist_name,
+            "preview_url": preview_url,
+            "mood": str(mood).strip().lower(),
+            "language": str(language).strip(),
+            "category": str(category).strip(),
+            "is_external": True,
+            "added_at": datetime.utcnow()
+        }
+        
+        # Upsert based on track_name and artist_name to prevent duplicates
+        self.global_library.update_one(
+            {
+                "track_name": track_name,
+                "artist_name": artist_name
+            },
+            {"$setOnInsert": track_data},
+            upsert=True
+        )
+        return True
+
+    def get_grouped_library(self):
+        """Returns tracks grouped by category."""
+        grouped = {}
+        tracks = list(self.global_library.find({}, {"_id": 0}))
+        
+        for track in tracks:
+            category = track.get("category", "Uncategorized")
+            if category not in grouped:
+                grouped[category] = []
+            grouped[category].append(track)
+        
+        return grouped
+
+    def search_library(self, query):
+        """Search the global library for tracks by name, artist, or mood (case-insensitive)."""
+        if not query or not isinstance(query, str):
+            return []
+        
+        query = query.strip()
+        if len(query) == 0:
+            return []
+        
+        # Case-insensitive regex pattern
+        pattern = f".*{query}.*"
+        regex = {"$regex": pattern, "$options": "i"}
+        
+        # Search in track_name, artist_name, or mood
+        results = list(self.global_library.find(
+            {
+                "$or": [
+                    {"track_name": regex},
+                    {"artist_name": regex},
+                    {"mood": regex},
+                    {"category": regex}
+                ]
+            },
+            {"_id": 0}
+        ).limit(15))
+        
+        return results

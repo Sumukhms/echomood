@@ -39,6 +39,39 @@ def health_check():
     return jsonify({"status": "success", "message": "The VIP Lounge is open."})
 
 # ==========================================
+# 0. AUTHENTICATION ROUTES
+# ==========================================
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
+    password = payload.get('password') or ''
+
+    if not username or not password:
+        return jsonify({"success": False, "message": "Username and password are required."}), 400
+
+    registered = db_manager.register_user(username, password)
+    if not registered:
+        return jsonify({"success": False, "message": "Username already exists or invalid credentials."}), 409
+
+    return jsonify({"success": True, "user": {"username": username}})
+
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
+    password = payload.get('password') or ''
+
+    if not username or not password:
+        return jsonify({"success": False, "message": "Username and password are required."}), 400
+
+    user = db_manager.verify_user(username, password)
+    if not user:
+        return jsonify({"success": False, "message": "Invalid username or password."}), 401
+
+    return jsonify({"success": True, "user": {"username": username}, "token": username})
+
+# ==========================================
 # 1. THE AI VOICE & YOUTUBE PIPELINE
 # ==========================================
 @app.route('/api/analyze/voice', methods=['POST'])
@@ -180,16 +213,18 @@ def analyze_face():
 @app.route('/api/vault/save_track', methods=['POST'])
 def save_api_track_to_vault():
     payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
     track_name = (payload.get('track_name') or '').strip()
     artist_name = (payload.get('artist_name') or '').strip()
     preview_url = (payload.get('preview_url') or '').strip()
     mood = (payload.get('mood') or 'calm').strip()
 
+    if not username:
+        return jsonify({"error": "Username is required."}), 400
     if not track_name or not artist_name or not preview_url:
         return jsonify({"error": "Missing required track fields"}), 400
 
-    user_id = 'admin_user_01'
-    db_manager.save_api_track(user_id, track_name, artist_name, preview_url, mood)
+    db_manager.save_api_track(username, track_name, artist_name, preview_url, mood)
 
     return jsonify({
         "success": True,
@@ -209,9 +244,10 @@ def upload_to_vault():
     track_name = request.form.get('track_name', 'Unknown Track')
     artist_name = request.form.get('artist_name', 'Unknown Artist')
     moods = request.form.get('moods', 'calm')
-    
-    # We use a hardcoded user for now until we build a login system
-    user_id = 'admin_user_01' 
+    username = (request.form.get('username') or '').strip()
+
+    if not username:
+        return jsonify({'error': 'Username is required.'}), 400
     
     # 1. Save the file with a unique ID so files with the same name don't overwrite each other
     ext = audio_file.filename.split('.')[-1]
@@ -224,7 +260,7 @@ def upload_to_vault():
     
     # 3. Save all this data into MongoDB!
     mood_list = [m.strip().lower() for m in moods.split(',')]
-    db_manager.add_personal_track(user_id, track_name, artist_name, file_url, mood_list)
+    db_manager.add_personal_track(username, track_name, artist_name, file_url, mood_list)
     
     print(f"✅ Vault secured: {track_name} by {artist_name}")
     return jsonify({
@@ -240,12 +276,44 @@ def stream_vault_audio(filename):
 
 @app.route('/api/vault/tracks', methods=['GET'])
 def get_vault_tracks():
-    """Returns all vault tracks for the currently hardcoded user."""
-    user_id = 'admin_user_01'
-    tracks = db_manager.get_user_tracks(user_id)
+    """Returns all vault tracks for the requested user."""
+    username = (request.args.get('username') or '').strip()
+    if not username:
+        return jsonify({'error': 'Username is required.'}), 400
+
+    tracks = db_manager.get_user_tracks(username)
     return jsonify({
         'success': True,
         'tracks': tracks
+    })
+
+# ==========================================
+# 3. THE GLOBAL LIBRARY PIPELINE
+# ==========================================
+@app.route('/api/library/home', methods=['GET'])
+def get_library_home():
+    """Returns the global library grouped by categories for the home screen."""
+    grouped_library = db_manager.get_grouped_library()
+    return jsonify({
+        'success': True,
+        'library': grouped_library
+    })
+
+@app.route('/api/library/search', methods=['GET'])
+def search_library():
+    """Search the global library for tracks by name, artist, mood, or category."""
+    query = (request.args.get('q') or '').strip()
+    if not query:
+        return jsonify({
+            'success': True,
+            'results': []
+        })
+    
+    results = db_manager.search_library(query)
+    return jsonify({
+        'success': True,
+        'results': results,
+        'query': query
     })
 
 if __name__ == '__main__':
