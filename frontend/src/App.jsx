@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import VoiceInputPanel from './components/VoiceInputPanel';
 import TextInputPanel from './components/TextInputPanel';
+import WebcamPanel from './components/WebcamPanel';
 import SongCard from './components/SongCard';
 import Onboarding from './components/Onboarding'; // <-- IMPORT THE NEW COMPONENT
 import VaultUpload from './components/VaultUpload';
@@ -65,14 +66,29 @@ function App() {
             >
               Text Mode
             </button>
+            <button
+              onClick={() => setAiInputMode('camera')}
+              className={`px-5 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
+                aiInputMode === 'camera'
+                  ? 'bg-gold-500 text-black'
+                  : 'text-zinc-300 hover:text-white'
+              }`}
+            >
+              Camera Mode
+            </button>
           </div>
           {aiInputMode === 'voice' ? (
             <VoiceInputPanel
               userProfile={userProfile}
               onAnalyzeComplete={(mood, tracks) => handleMoodDetected(mood, tracks)}
             />
-          ) : (
+          ) : aiInputMode === 'text' ? (
             <TextInputPanel
+              userProfile={userProfile}
+              onAnalyzeComplete={(mood, tracks) => handleMoodDetected(mood, tracks)}
+            />
+          ) : (
+            <WebcamPanel
               userProfile={userProfile}
               onAnalyzeComplete={(mood, tracks) => handleMoodDetected(mood, tracks)}
             />

@@ -2,6 +2,8 @@ import os
 import random
 import uuid
 import json
+import cv2
+import numpy as np
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from database import MongoManager
@@ -9,6 +11,7 @@ from database import MongoManager
 # Import your AI modules
 from music_recommender import RegionalMusicRecommender
 from voice_analyzer import VoiceEmotionAnalyzer
+from facial_analyzer import FacialEmotionAnalyzer
 
 app = Flask(__name__)
 # Allow React to communicate with this server
@@ -28,6 +31,7 @@ print("Booting up AI Brain. This may take a moment...")
 recommender = RegionalMusicRecommender()
 db_manager = MongoManager()
 voice_analyzer = VoiceEmotionAnalyzer(device_id=None) 
+face_analyzer = FacialEmotionAnalyzer()
 print("AI Brain fully online.")
 
 @app.route('/api/health', methods=['GET'])
@@ -123,6 +127,46 @@ def analyze_text():
             "detected_mood": "CONTENT BLOCKED",
             "tracks": []
         })
+
+    print(f"🎵 Fetching {detected_mood} soundscapes in {', '.join(user_languages)}...")
+    songs = recommender.get_recommendations(detected_mood, languages=user_languages, limit=6)
+
+    return jsonify({
+        "status": "success",
+        "detected_mood": detected_mood,
+        "tracks": songs
+    })
+
+@app.route('/api/analyze/face', methods=['POST'])
+def analyze_face():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file found"}), 400
+
+    image_file = request.files['image']
+    user_languages = request.form.getlist('languages')
+    if len(user_languages) == 1:
+        candidate = user_languages[0].strip()
+        if candidate.startswith('['):
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, list):
+                    user_languages = [str(l).strip() for l in parsed if str(l).strip()]
+            except json.JSONDecodeError:
+                user_languages = [l.strip() for l in candidate.split(',') if l.strip()]
+        else:
+            user_languages = [l.strip() for l in candidate.split(',') if l.strip()]
+    elif len(user_languages) > 1:
+        user_languages = [l.strip() for l in user_languages if l and l.strip()]
+    if not user_languages:
+        user_languages = ['Hindi']
+
+    nparr = np.frombuffer(image_file.read(), np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if frame is None:
+        return jsonify({"error": "Invalid image data"}), 400
+
+    result = face_analyzer.analyze_frame(frame)
+    detected_mood = result.get('mood', 'calm') if isinstance(result, dict) else 'calm'
 
     print(f"🎵 Fetching {detected_mood} soundscapes in {', '.join(user_languages)}...")
     songs = recommender.get_recommendations(detected_mood, languages=user_languages, limit=6)
