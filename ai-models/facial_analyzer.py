@@ -1,3 +1,4 @@
+# ai-models/facial_analyzer.py
 import cv2
 from deepface import DeepFace
 from collections import deque, Counter
@@ -101,24 +102,30 @@ class FacialEmotionAnalyzer:
     def analyze_frame(self, frame):
         """Analyze a single frame."""
         try:
+            # --- START OF CHANGES ---
+            
             # Reduce frame size for faster processing
-            small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
+            # small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5) # <-- We are disabling this
             
             analysis = DeepFace.analyze(
-                small_frame,
+                frame, # <-- Use the original, full-quality 'frame'
                 actions=['emotion'],
                 enforce_detection=False,
-                detector_backend='opencv',  # Faster than ssd
+                detector_backend='mtcnn',  # <-- Use the 'mtcnn' detector
                 silent=True
             )
+            
+            # --- END OF CHANGES ---
 
             if isinstance(analysis, list) and len(analysis) > 0:
                 first_face = analysis[0]
                 dominant_emotion = first_face['dominant_emotion']
                 emotion_probs = first_face['emotion']
                 
-                # Scale region back to original size
-                region = {k: v * 2 for k, v in first_face['region'].items()}
+                # --- START OF CHANGES ---
+                # No scaling needed as we used the original frame
+                region = first_face['region']
+                # --- END OF CHANGES ---
                 
                 # Get confidence (probability of dominant emotion)
                 confidence = emotion_probs[dominant_emotion] / 100.0

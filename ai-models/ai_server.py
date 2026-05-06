@@ -1,290 +1,343 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import traceback
-import time
 import os
-import numpy as np
-from werkzeug.utils import secure_filename
+import random
+import uuid
+import json
 import cv2
-from scipy.io import wavfile
-import librosa
+import numpy as np
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+from database import MongoManager
 
-# --- Performance Fix: Load Models ONCE on startup ---
-try:
-    import text_analyzer
-    import music_recommender
-    import facial_analyzer
-    import voice_analyzer
-    
-    print("Pre-loading all models...")
-    
-    # Create instances
-    text_model = text_analyzer.ImprovedTextAnalyzer()
-    recommender = music_recommender.SpotifyRecommender()
-    face_analyzer = facial_analyzer.FacialEmotionAnalyzer()
-    voice_model = voice_analyzer.VoiceEmotionAnalyzer()
-    
-    print("✅ Models loaded successfully.")
-
-except Exception as e:
-    print(f"❌ CRITICAL: Failed to load models on startup: {e}")
-    print(traceback.format_exc())
-    text_model = None
-    recommender = None
-    face_analyzer = None
-    voice_model = None
-# --------------------------------------------------
+# Import your AI modules
+from music_recommender import RegionalMusicRecommender
+from voice_analyzer import VoiceEmotionAnalyzer
+from facial_analyzer import FacialEmotionAnalyzer
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Allow React to communicate with this server
+CORS(app) 
 
-# Configure upload folder
-UPLOAD_FOLDER = 'temp_uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
+# --- FOLDER SETUP ---
+# For temporary voice recordings from the microphone
+app.config['UPLOAD_FOLDER'] = 'temp_uploads'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-ALLOWED_AUDIO = {'wav', 'mp3', 'webm', 'ogg', 'm4a'}
-ALLOWED_IMAGE = {'png', 'jpg', 'jpeg'}
+# For permanent storage of the user's personal mp3 files
+app.config['VAULT_FOLDER'] = 'vault_audio'
+os.makedirs(app.config['VAULT_FOLDER'], exist_ok=True)
 
-def allowed_file(filename, allowed_extensions):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+print("Booting up AI Brain. This may take a moment...")
+# Initialize the models ONCE at startup so requests are lightning fast
+recommender = RegionalMusicRecommender()
+db_manager = MongoManager()
+voice_analyzer = VoiceEmotionAnalyzer(device_id=None) 
+face_analyzer = FacialEmotionAnalyzer()
+print("AI Brain fully online.")
 
-def cleanup_file(filepath):
-    """Remove temporary file after processing"""
-    try:
-        if os.path.exists(filepath):
-            os.remove(filepath)
-            print(f"🗑️ Cleaned up: {filepath}")
-    except Exception as e:
-        print(f"⚠️ Could not delete {filepath}: {e}")
-
-# --- Health Check ---
-@app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
 def health_check():
-    """Simple health check to see if the server is running."""
-    return jsonify({
-        "status": "ok",
-        "message": "EchoMood AI server is running",
-        "models_loaded": {
-            "text_analyzer": text_model is not None,
-            "recommender": recommender is not None,
-            "face_analyzer": face_analyzer is not None,
-            "voice_analyzer": voice_model is not None
-        }
-    }), 200
+    return jsonify({"status": "success", "message": "The VIP Lounge is open."})
 
-# --- Text Analysis Endpoint ---
-@app.route('/api/analyze_text', methods=['POST'])
-def analyze_text():
-    if not text_model:
-        return jsonify({"error": "Text analyzer model is not loaded"}), 500
-        
-    try:
-        data = request.get_json()
-        if not data or 'text' not in data:
-            return jsonify({"error": "Missing 'text' field"}), 400
-        
-        text_to_analyze = data['text']
-        if not text_to_analyze.strip():
-            return jsonify({"error": "Text cannot be empty"}), 400
-        
-        print(f"📝 Analyzing text: {text_to_analyze[:100]}...")
-        
-        mood = text_model.analyze_text_mood(text_to_analyze)
-        
-        print(f"✅ Detected mood: {mood}")
-        
-        return jsonify({"mood": mood}), 200
-        
-    except Exception as e:
-        print(f"❌ Error in analyze_text: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({"error": "Failed to analyze text", "details": str(e)}), 500
+# ==========================================
+# 0. AUTHENTICATION ROUTES
+# ==========================================
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
+    password = payload.get('password') or ''
 
-# --- Face Analysis Endpoint ---
-@app.route('/api/analyze_face', methods=['POST'])
-def analyze_face():
-    if not face_analyzer:
-        return jsonify({"error": "Face analyzer model is not loaded"}), 500
-    
-    filepath = None
-    try:
-        # Check if image file is present
-        if 'image' not in request.files:
-            return jsonify({"error": "No image file provided"}), 400
-        
-        file = request.files['image']
-        if file.filename == '':
-            return jsonify({"error": "No image file selected"}), 400
-        
-        if not allowed_file(file.filename, ALLOWED_IMAGE):
-            return jsonify({"error": "Invalid image format. Use PNG, JPG, or JPEG"}), 400
-        
-        # Save file temporarily
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{int(time.time())}_{filename}")
-        file.save(filepath)
-        
-        print(f"📸 Analyzing face from image: {filename}")
-        
-        # Read image
-        frame = cv2.imread(filepath)
-        if frame is None:
-            return jsonify({"error": "Could not read image file"}), 400
-        
-        # Analyze the frame
-        result = face_analyzer.analyze_frame(frame)
-        
-        if result['success']:
-            mood = result['mood']
-            confidence = result['confidence']
-            print(f"✅ Detected mood: {mood} (confidence: {confidence:.2f})")
-            return jsonify({
-                "mood": mood,
-                "confidence": float(confidence),
-                "emotion": result['emotion']
-            }), 200
-        else:
-            return jsonify({"error": "No face detected in the image"}), 400
-        
-    except Exception as e:
-        print(f"❌ Error in analyze_face: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({"error": "Failed to analyze face", "details": str(e)}), 500
-    finally:
-        if filepath:
-            cleanup_file(filepath)
+    if not username or not password:
+        return jsonify({"success": False, "message": "Username and password are required."}), 400
 
-# --- Voice Analysis Endpoint ---
-@app.route('/api/analyze_voice', methods=['POST'])
+    registered = db_manager.register_user(username, password)
+    if not registered:
+        return jsonify({"success": False, "message": "Username already exists or invalid credentials."}), 409
+
+    return jsonify({"success": True, "user": {"username": username}})
+
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
+    password = payload.get('password') or ''
+
+    if not username or not password:
+        return jsonify({"success": False, "message": "Username and password are required."}), 400
+
+    user = db_manager.verify_user(username, password)
+    if not user:
+        return jsonify({"success": False, "message": "Invalid username or password."}), 401
+
+    return jsonify({"success": True, "user": {"username": username}, "token": username})
+
+# ==========================================
+# 1. THE AI VOICE & YOUTUBE PIPELINE
+# ==========================================
+@app.route('/api/analyze/voice', methods=['POST'])
 def analyze_voice():
-    if not voice_model:
-        return jsonify({"error": "Voice analyzer model is not loaded"}), 500
+    print("🎤 Receiving voice data from frontend...")
     
-    filepath = None
-    try:
-        # Check if audio file is present
-        if 'audio' not in request.files:
-            return jsonify({"error": "No audio file provided"}), 400
+    if 'audio' not in request.files:
+        return jsonify({"error": "No audio file found"}), 400
         
-        file = request.files['audio']
-        if file.filename == '':
-            return jsonify({"error": "No audio file selected"}), 400
-        
-        # Save file temporarily
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{int(time.time())}_{filename}")
-        file.save(filepath)
-        
-        print(f"🎤 Analyzing voice from audio: {filename}")
-        
-        # Load and process audio
-        # Convert to 16kHz mono if needed
-        audio_data, sample_rate = librosa.load(filepath, sr=16000, mono=True)
-        
-        if len(audio_data) < 16000:  # Less than 1 second
-            return jsonify({"error": "Audio too short. Please record at least 1 second"}), 400
-        
-        # Prepare input for model
-        input_data = {
-            "raw": audio_data,
-            "sampling_rate": sample_rate
-        }
-        
-        # Get predictions
-        predictions = voice_model.classifier(input_data, top_k=5)
-        
-        # Get top emotion and map to mood
-        top_prediction = predictions[0]
-        raw_label = top_prediction['label']
-        confidence = top_prediction['score']
-        
-        mood = voice_model.emotion_to_mood.get(raw_label, 'calm')
-        
-        print(f"✅ Detected mood: {mood} (confidence: {confidence:.2f})")
-        
+    audio_file = request.files['audio']
+    
+    # Catch language preferences from React:
+    # - repeated form fields: languages=Hindi&languages=Tamil
+    # - JSON array string: ["Hindi","Tamil"]
+    # - comma-separated string: Hindi,Tamil
+    user_languages = request.form.getlist('languages')
+    if len(user_languages) == 1:
+        candidate = user_languages[0].strip()
+        if candidate.startswith('['):
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, list):
+                    user_languages = [str(l).strip() for l in parsed if str(l).strip()]
+            except json.JSONDecodeError:
+                user_languages = [l.strip() for l in candidate.split(',') if l.strip()]
+        else:
+            user_languages = [l.strip() for l in candidate.split(',') if l.strip()]
+    elif len(user_languages) > 1:
+        user_languages = [l.strip() for l in user_languages if l and l.strip()]
+    if not user_languages:
+        user_languages = ['Hindi']
+
+    # Save the file temporarily
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], 'recording.webm')
+    audio_file.save(file_path)
+    print(f"✅ Audio saved to {file_path}")
+    
+    # STEP 1: Analyze the Audio using our semantic method
+    detected_mood = voice_analyzer.analyze_file(file_path)
+
+    # Handle the safety block from the analyzer
+    if detected_mood == 'blocked':
+        if os.path.exists(file_path):
+            os.remove(file_path)
         return jsonify({
-            "mood": mood,
-            "confidence": float(confidence),
-            "emotion": raw_label,
-            "all_predictions": [
-                {"emotion": p['label'], "score": float(p['score'])}
-                for p in predictions
-            ]
-        }), 200
-        
-    except Exception as e:
-        print(f"❌ Error in analyze_voice: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({"error": "Failed to analyze voice", "details": str(e)}), 500
-    finally:
-        if filepath:
-            cleanup_file(filepath)
+            "status": "success",
+            "detected_mood": "CONTENT BLOCKED",
+            "tracks": []
+        })
 
-# --- Music Recommendation Endpoint ---
-@app.route('/api/recommendations', methods=['POST'])
-def recommend_music():
-    if not recommender:
-        return jsonify({"error": "Recommender model is not loaded"}), 500
-
-    try:
-        data = request.get_json()
-        if not data or 'mood' not in data:
-            return jsonify({"error": "Missing 'mood' field"}), 400
-
-        mood = data['mood'].lower()
-        limit = data.get('limit', 15)
-        
-        print(f"🎵 Getting {limit} recommendations for mood: {mood}")
-        
-        songs = recommender.get_recommendations(mood, limit=limit)
-        
-        if not songs:
-            print(f"⚠️ No recommendations found for mood: {mood}")
-
-        print(f"✅ Returning {len(songs)} recommendations.")
-        return jsonify({"recommendations": songs, "mood": mood}), 200
-        
-    except Exception as e:
-        print(f"❌ Error in recommend_music: {str(e)}")
-        print(traceback.format_exc())
-        return jsonify({"error": "Failed to get recommendations", "details": str(e)}), 500
-
-# --- Error Handlers ---
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({
-        "error": "Endpoint not found",
-        "message": f"The requested URL {request.path} does not exist."
-    }), 404
-
-@app.errorhandler(500)
-def internal_error(e):
-    return jsonify({
-        "error": "Internal server error",
-        "message": "An unexpected error occurred. Check the server logs."
-    }), 500
-
-@app.errorhandler(413)
-def request_entity_too_large(e):
-    return jsonify({
-        "error": "File too large",
-        "message": "The uploaded file exceeds the maximum size limit (16MB)."
-    }), 413
-
-# --- Server Startup ---
-if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("🚀 ECHOMOOD AI SERVER (v3.0 - Full Stack)")
-    print("="*60)
-    if text_model and recommender and face_analyzer and voice_model:
-        print("STATUS: All models loaded. Ready to serve.")
-    else:
-        print("STATUS: ⚠️ CRITICAL: One or more models failed to load.")
-    print("="*60)
-    print(f"📡 API running on: http://127.0.0.1:5000")
-    print(f"🩺 Health Check: http://127.0.0.1:5000/health")
-    print("="*60 + "\n")
+    # STEP 2: Fetch the Music from YouTube based on the mood and ALL preferred languages
+    print(f"🎵 Fetching {detected_mood} soundscapes in {', '.join(user_languages)}...")
+    songs = recommender.get_recommendations(detected_mood, languages=user_languages, limit=6)
     
-    app.run(port=5000, debug=True, host='127.0.0.1')
+    # Clean up the temp recording
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    # Send the final payload back to React
+    return jsonify({
+        "status": "success",
+        "detected_mood": detected_mood,
+        "tracks": songs
+    })
+
+@app.route('/api/analyze/text', methods=['POST'])
+def analyze_text():
+    payload = request.get_json(silent=True) or {}
+    text = (payload.get('text') or '').strip()
+    user_languages = payload.get('languages', ['Hindi'])
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    if not isinstance(user_languages, list):
+        user_languages = ['Hindi']
+    user_languages = [str(lang).strip() for lang in user_languages if str(lang).strip()]
+    if not user_languages:
+        user_languages = ['Hindi']
+
+    detected_mood = voice_analyzer.analyze_text(text)
+
+    if detected_mood == 'blocked':
+        return jsonify({
+            "status": "success",
+            "detected_mood": "CONTENT BLOCKED",
+            "tracks": []
+        })
+
+    print(f"🎵 Fetching {detected_mood} soundscapes in {', '.join(user_languages)}...")
+    songs = recommender.get_recommendations(detected_mood, languages=user_languages, limit=6)
+
+    return jsonify({
+        "status": "success",
+        "detected_mood": detected_mood,
+        "tracks": songs
+    })
+
+@app.route('/api/analyze/face', methods=['POST'])
+def analyze_face():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file found"}), 400
+
+    image_file = request.files['image']
+    user_languages = request.form.getlist('languages')
+    if len(user_languages) == 1:
+        candidate = user_languages[0].strip()
+        if candidate.startswith('['):
+            try:
+                parsed = json.loads(candidate)
+                if isinstance(parsed, list):
+                    user_languages = [str(l).strip() for l in parsed if str(l).strip()]
+            except json.JSONDecodeError:
+                user_languages = [l.strip() for l in candidate.split(',') if l.strip()]
+        else:
+            user_languages = [l.strip() for l in candidate.split(',') if l.strip()]
+    elif len(user_languages) > 1:
+        user_languages = [l.strip() for l in user_languages if l and l.strip()]
+    if not user_languages:
+        user_languages = ['Hindi']
+
+    nparr = np.frombuffer(image_file.read(), np.uint8)
+    frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if frame is None:
+        return jsonify({"error": "Invalid image data"}), 400
+
+    result = face_analyzer.analyze_frame(frame)
+    detected_mood = result.get('mood', 'calm') if isinstance(result, dict) else 'calm'
+
+    print(f"🎵 Fetching {detected_mood} soundscapes in {', '.join(user_languages)}...")
+    songs = recommender.get_recommendations(detected_mood, languages=user_languages, limit=6)
+
+    return jsonify({
+        "status": "success",
+        "detected_mood": detected_mood,
+        "tracks": songs
+    })
+
+@app.route('/api/vault/save_track', methods=['POST'])
+def save_api_track_to_vault():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get('username') or '').strip()
+    track_name = (payload.get('track_name') or '').strip()
+    artist_name = (payload.get('artist_name') or '').strip()
+    preview_url = (payload.get('preview_url') or '').strip()
+    mood = (payload.get('mood') or 'calm').strip()
+
+    if not username:
+        return jsonify({"error": "Username is required."}), 400
+    if not track_name or not artist_name or not preview_url:
+        return jsonify({"error": "Missing required track fields"}), 400
+
+    db_manager.save_api_track(username, track_name, artist_name, preview_url, mood)
+
+    return jsonify({
+        "success": True,
+        "message": "Track saved to vault"
+    })
+
+# ==========================================
+# 2. THE PERSONAL VAULT (MONGODB) PIPELINE
+# ==========================================
+@app.route('/api/vault/upload', methods=['POST'])
+def upload_to_vault():
+    print("📥 Receiving new track for the Vault...")
+    if 'audio' not in request.files:
+        return jsonify({'error': 'No audio file provided'}), 400
+        
+    audio_file = request.files['audio']
+    track_name = request.form.get('track_name', 'Unknown Track')
+    artist_name = request.form.get('artist_name', 'Unknown Artist')
+    moods = request.form.get('moods', 'calm')
+    username = (request.form.get('username') or '').strip()
+
+    if not username:
+        return jsonify({'error': 'Username is required.'}), 400
+    
+    # 1. Save the file with a unique ID so files with the same name don't overwrite each other
+    ext = audio_file.filename.split('.')[-1]
+    unique_filename = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(app.config['VAULT_FOLDER'], unique_filename)
+    audio_file.save(filepath)
+    
+    # 2. Generate the URL that React will use to stream the song
+    file_url = f"http://127.0.0.1:5000/api/vault/stream/{unique_filename}"
+    
+    # 3. Save all this data into MongoDB!
+    mood_list = [m.strip().lower() for m in moods.split(',')]
+    db_manager.add_personal_track(username, track_name, artist_name, file_url, mood_list)
+    
+    print(f"✅ Vault secured: {track_name} by {artist_name}")
+    return jsonify({
+        'success': True, 
+        'message': 'Track secured in Vault!', 
+        'url': file_url
+    })
+
+@app.route('/api/vault/stream/<filename>')
+def stream_vault_audio(filename):
+    """This route allows React to actually play the .mp3 files stored on your server"""
+    return send_from_directory(app.config['VAULT_FOLDER'], filename)
+
+@app.route('/api/vault/tracks', methods=['GET'])
+def get_vault_tracks():
+    """Returns all vault tracks for the requested user."""
+    username = (request.args.get('username') or '').strip()
+    if not username:
+        return jsonify({'error': 'Username is required.'}), 400
+
+    tracks = db_manager.get_user_tracks(username)
+    return jsonify({
+        'success': True,
+        'tracks': tracks
+    })
+
+# ==========================================
+# 3. THE GLOBAL LIBRARY PIPELINE
+# ==========================================
+@app.route('/api/library/home', methods=['GET'])
+def get_library_home():
+    """Returns the global library grouped by categories for the home screen."""
+    grouped_library = db_manager.get_grouped_library()
+    return jsonify({
+        'success': True,
+        'library': grouped_library
+    })
+
+@app.route('/api/library/search', methods=['GET'])
+def search_library():
+    """Search the global library for tracks by name, artist, mood, or category."""
+    query = (request.args.get('q') or '').strip()
+    if not query:
+        return jsonify({
+            'success': True,
+            'results': []
+        })
+    
+    results = db_manager.search_library(query)
+    return jsonify({
+        'success': True,
+        'results': results,
+        'query': query
+    })
+    
+@app.route('/api/playlists/create', methods=['POST'])
+def create_user_playlist():
+    data = request.json
+    username = data.get('username')
+    name = data.get('name', 'New Playlist')
+    playlist_id = db_manager.create_playlist(username, name)
+    return jsonify({"success": True, "playlist_id": str(playlist_id)})
+
+@app.route('/api/playlists/add_track', methods=['POST'])
+def add_to_playlist():
+    data = request.json
+    playlist_id = data.get('playlist_id')
+    track_data = data.get('track')
+    db_manager.add_track_to_playlist(playlist_id, track_data)
+    return jsonify({"success": True, "message": "Added to playlist"})
+
+@app.route('/api/playlists/all', methods=['GET'])
+def fetch_playlists():
+    username = request.args.get('username')
+    playlists = db_manager.get_user_playlists(username)
+    return jsonify(playlists)
+
+if __name__ == '__main__':
+    print("Starting VIP AI Server on port 5000...")
+    app.run(port=5000, debug=True)

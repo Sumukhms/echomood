@@ -1,37 +1,63 @@
 import { useState } from 'react';
-import { FaPaperPlane } from 'react-icons/fa';
+import axios from 'axios';
 
-// Pass the 'getRecommendations' function from our hook
-export default function TextInputPanel({ getRecommendations, isLoading }) {
+export default function TextInputPanel({ userProfile, onAnalyzeComplete }) {
   const [text, setText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusText, setStatusText] = useState('Type your mood or vibe and let AI DJ interpret it.');
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!text || isLoading) return;
-    getRecommendations('detect', { text });
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const cleanText = text.trim();
+    if (!cleanText) {
+      setStatusText('Please enter a mood prompt before analyzing.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setStatusText('Analyzing text resonance...');
+
+      const response = await axios.post('http://127.0.0.1:5000/api/analyze/text', {
+        text: cleanText,
+        languages: userProfile?.languages || ['Hindi']
+      });
+
+      setStatusText('Vibe detected.');
+      if (onAnalyzeComplete) {
+        onAnalyzeComplete(response.data.detected_mood, response.data.tracks);
+      }
+    } catch (error) {
+      console.error('Text analysis failed', error);
+      setStatusText('Error communicating with AI Brain.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div>
-      <h3 className="text-2xl font-semibold mb-4">How are you feeling?</h3>
-      <form onSubmit={handleSubmit}>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="e.g., Today was a fantastic day!"
-          rows="4"
-          className="w-full p-4 rounded-lg bg-gray-800 bg-opacity-70 border-2 border-gray-600 focus:border-white focus:ring-0 focus:outline-none transition-colors"
-        />
+    <form onSubmit={handleSubmit} className="w-full p-6 md:p-8 border bg-white/5 backdrop-blur-md border-white/10 rounded-3xl shadow-2xl mt-8">
+      <h3 className="mb-4 font-serif text-2xl tracking-wide text-white">Text Resonance</h3>
+      <p className="text-xs tracking-[0.15em] uppercase text-zinc-400 mb-4">Describe how you feel right now</p>
+
+      <textarea
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        rows={4}
+        placeholder="Example: I need calm focus for deep work, maybe some nostalgic indie."
+        className="w-full p-4 text-sm text-white border rounded-2xl bg-black/40 border-white/15 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-gold-500/60"
+      />
+
+      <div className="flex items-center justify-between mt-4 gap-4">
+        <p className="text-xs tracking-widest uppercase text-zinc-400">{statusText}</p>
         <button
           type="submit"
-          disabled={isLoading || !text}
-          className="w-full mt-4 p-4 text-lg font-bold bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-3
-                     disabled:bg-gray-500 disabled:cursor-not-allowed"
+          disabled={isSubmitting}
+          className="px-6 py-2 text-xs tracking-widest uppercase rounded-full transition-all bg-gold-500 text-black hover:bg-gold-400 disabled:opacity-60"
         >
-          <FaPaperPlane />
-          {isLoading ? 'Detecting...' : 'Detect Mood & Get Music'}
+          {isSubmitting ? 'Analyzing...' : 'Analyze Text'}
         </button>
-      </form>
-    </div>
+      </div>
+    </form>
   );
 }
