@@ -7,6 +7,7 @@ import numpy as np
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from database import MongoManager
+import syncedlyrics
 
 # Import your AI modules
 from music_recommender import RegionalMusicRecommender
@@ -329,14 +330,35 @@ def add_to_playlist():
     data = request.json
     playlist_id = data.get('playlist_id')
     track_data = data.get('track')
-    db_manager.add_track_to_playlist(playlist_id, track_data)
-    return jsonify({"success": True, "message": "Added to playlist"})
+    success = db_manager.add_track_to_playlist(playlist_id, track_data)
+    if success:
+        return jsonify({"success": True, "message": "Added to playlist"})
+    else:
+        return jsonify({"success": False, "message": "Track already in playlist"}), 409
 
 @app.route('/api/playlists/all', methods=['GET'])
 def fetch_playlists():
     username = request.args.get('username')
     playlists = db_manager.get_user_playlists(username)
     return jsonify(playlists)
+
+@app.route('/api/lyrics', methods=['GET'])
+def get_lyrics():
+    track_name = request.args.get('track_name')
+    artist_name = request.args.get('artist_name')
+    
+    if not track_name or not artist_name:
+        return jsonify({"success": False}), 400
+    
+    try:
+        lrc_string = syncedlyrics.search(f"{track_name} {artist_name}")
+        if lrc_string:
+            return jsonify({"success": True, "lrc": lrc_string})
+        else:
+            return jsonify({"success": False})
+    except Exception as e:
+        print(f"Error fetching lyrics: {e}")
+        return jsonify({"success": False}), 500
 
 if __name__ == '__main__':
     print("Starting VIP AI Server on port 5000...")

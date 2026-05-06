@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 
 export default function SongCard({
@@ -10,6 +10,24 @@ export default function SongCard({
   const [isSaved, setIsSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPlaylistMenu, setShowPlaylistMenu] = useState(false);
+  const [userPlaylists, setUserPlaylists] = useState([]);
+
+  useEffect(() => {
+    if (username) {
+      fetchUserPlaylists();
+    }
+  }, [username]);
+
+  const fetchUserPlaylists = async () => {
+    try {
+      const res = await axios.get(
+        `http://127.0.0.1:5000/api/playlists/all?username=${username}`,
+      );
+      setUserPlaylists(res.data);
+    } catch (error) {
+      console.error("Failed to fetch playlists:", error);
+    }
+  };
 
   const handleSaveTrack = async () => {
     if (isSaved || isSaving) return;
@@ -34,12 +52,20 @@ export default function SongCard({
     }
   };
   const handleAddToPlaylist = async (playlistId) => {
-    await axios.post("http://127.0.0.1:5000/api/playlists/add_track", {
-      playlist_id: playlistId,
-      track: track,
-    });
-    setShowPlaylistMenu(false);
-    alert("Added to playlist!");
+    try {
+      const res = await axios.post(
+        "http://127.0.0.1:5000/api/playlists/add_track",
+        {
+          playlist_id: playlistId,
+          track: track,
+        },
+      );
+      setShowPlaylistMenu(false);
+      alert(res.data.message || "Added to playlist!");
+    } catch (error) {
+      console.error("Failed to add to playlist:", error);
+      alert(error.response?.data?.message || "Failed to add to playlist");
+    }
   };
   return (
     <div className="relative flex flex-col p-4 transition-all duration-500 border group bg-white/5 backdrop-blur-md border-white/10 rounded-2xl hover:bg-white/10 hover:-translate-y-1 hover:shadow-[0_10px_30px_rgba(212,175,55,0.15)]">
@@ -58,6 +84,13 @@ export default function SongCard({
           <span className="text-sm">
             {isSaved ? "♥" : isSaving ? "..." : "♡"}
           </span>
+        </button>
+        <button
+          onClick={() => setShowPlaylistMenu(!showPlaylistMenu)}
+          className="absolute top-2 right-14 z-10 flex items-center justify-center w-9 h-9 rounded-full bg-black/60 border border-white/20 text-white hover:border-gold-500 hover:text-gold-400 transition-all"
+          title="Add to Playlist"
+        >
+          <span className="text-sm">+</span>
         </button>
         <iframe
           src={track.preview_url}
@@ -85,30 +118,22 @@ export default function SongCard({
         >
           Play
         </button>
-        <div className="relative">
-          <button
-            onClick={() => setShowPlaylistMenu(!showPlaylistMenu)}
-            className="p-2 bg-white/10 rounded-full hover:bg-white/20 text-white"
-          >
-            +
-          </button>
-
-          {showPlaylistMenu && (
-            <div className="absolute bottom-full right-0 mb-2 w-48 bg-zinc-900 border border-white/10 rounded-lg shadow-xl z-50 p-2">
-              <p className="text-xs text-zinc-500 mb-2 px-2">Add to Playlist</p>
-              {userPlaylists.map((p) => (
-                <button
-                  key={p._id}
-                  onClick={() => handleAddToPlaylist(p._id)}
-                  className="w-full text-left px-2 py-1 text-sm hover:bg-gold-600/20 text-white rounded"
-                >
-                  {p.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
+
+      {showPlaylistMenu && (
+        <div className="absolute top-16 right-4 w-48 bg-zinc-900 border border-white/10 rounded-lg shadow-xl z-50 p-2">
+          <p className="text-xs text-zinc-500 mb-2 px-2">Add to Playlist</p>
+          {userPlaylists.map((p) => (
+            <button
+              key={p._id}
+              onClick={() => handleAddToPlaylist(p._id)}
+              className="w-full text-left px-2 py-1 text-sm hover:bg-gold-600/20 text-white rounded"
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

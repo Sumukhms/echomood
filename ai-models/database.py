@@ -197,18 +197,26 @@ class MongoManager:
         
         return results
     
-    def create_playlist(self, user_id, name):
+    def create_playlist(self, username, name):
         """Creates a new playlist for a user."""
         playlist = {
-            "user_id": user_id,
+            "username": username,
             "name": name,
             "tracks": [],
-            "created_at": ObjectId().get_inc() # Using ObjectId for timestamping
+            "created_at": datetime.utcnow()
         }
         return self.playlists.insert_one(playlist).inserted_id
 
     def add_track_to_playlist(self, playlist_id, track_data):
-        """Adds a track (local or external) to a specific playlist."""
+        """Adds a track (local or external) to a specific playlist, preventing duplicates."""
+        # Check if track already exists in playlist
+        existing_playlist = self.playlists.find_one({"_id": ObjectId(playlist_id)})
+        if existing_playlist:
+            for existing_track in existing_playlist.get("tracks", []):
+                if (existing_track.get("track_name") == track_data.get("track_name") and 
+                    existing_track.get("artist_name") == track_data.get("artist_name")):
+                    return False  # Duplicate found, don't add
+        
         # Ensure is_external flag is preserved
         track_to_add = {
             "track_name": track_data.get("track_name"),
@@ -217,12 +225,13 @@ class MongoManager:
             "is_external": track_data.get("is_external", False),
             "mood_tags": track_data.get("mood_tags", [])
         }
-        return self.playlists.update_one(
+        result = self.playlists.update_one(
             {"_id": ObjectId(playlist_id)},
             {"$push": {"tracks": track_to_add}}
         )
+        return result.modified_count > 0
 
-    def get_user_playlists(self, user_id):
+    def get_user_playlists(self, username):
         """Fetches all playlists owned by a user."""
-        results = self.playlists.find({"user_id": user_id})
+        results = self.playlists.find({"username": username})
         return [{**p, "_id": str(p["_id"])} for p in results]
