@@ -1,113 +1,115 @@
 import os
+import shutil
 import speech_recognition as sr
-import pydub
 from pydub import AudioSegment
 
-pydub.AudioSegment.converter = "ffmpeg.exe"
-pydub.AudioSegment.ffprobe = "ffprobe.exe"
+
+def _find_ffmpeg():
+    """Find ffmpeg/ffprobe on PATH regardless of OS (no hardcoded .exe)."""
+    ffmpeg = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+    ffprobe = shutil.which("ffprobe") or shutil.which("ffprobe.exe")
+    return ffmpeg, ffprobe
+
 
 class VoiceEmotionAnalyzer:
-    # We keep device_id here just so ai_server.py doesn't crash when it tries to pass it!
     def __init__(self, device_id=None):
         print("Loading Semantic Voice Analyzer (Speech-to-Text)...")
         self.recognizer = sr.Recognizer()
-        
-        # The Semantic Dictionary: Map words to your 5 core moods
-        # The Semantic Dictionary: Map words to 10 distinct moods/vibes
+
+        # Set ffmpeg paths dynamically — works on Windows, Mac, Linux
+        ffmpeg_path, ffprobe_path = _find_ffmpeg()
+        if ffmpeg_path:
+            AudioSegment.converter = ffmpeg_path
+        if ffprobe_path:
+            AudioSegment.ffprobe = ffprobe_path
+
         self.mood_keywords = {
-            'happy': ['happy', 'good', 'great', 'awesome', 'joy', 'upbeat', 'fun', 'cheerful', 'amazing', 'smile', 'vibe', 'fantastic'],
-            'sad': ['sad', 'down', 'depressed', 'cry', 'hurt', 'lonely', 'tears', 'heartbreak', 'upset', 'emotional', 'gloomy'],
-            'angry': ['angry', 'mad', 'frustrated', 'rage', 'hate', 'annoy', 'pissed', 'furious', 'heavy', 'hard', 'aggressive'],
-            'energetic': ['energetic', 'energy', 'hype', 'pump', 'gym', 'workout', 'fast', 'intense', 'excited', 'up', 'beast'],
-            'calm': ['relax', 'chill', 'calm', 'peace', 'slow', 'quiet', 'lofi', 'mellow', 'soothing', 'zen'],
-            
-            # --- NEW VIBES ---
-            'romantic': ['love', 'romantic', 'date', 'crush', 'heart', 'sweet', 'couple', 'beautiful', 'affection'],
-            'nostalgic': ['nostalgic', 'memory', 'old', 'throwback', 'classic', 'retro', 'childhood', 'past', '90s', '80s', '2000s'],
-            'focused': ['focus', 'study', 'work', 'concentrate', 'deep', 'coding', 'reading', 'programming', 'task'],
-            'party': ['party', 'club', 'dance', 'dj', 'weekend', 'lit', 'crazy', 'celebration', 'drinks'],
-            'sleepy': ['sleep', 'tired', 'bed', 'dream', 'nap', 'lullaby', 'snooze', 'night']
+            "happy": ["happy", "good", "great", "awesome", "joy", "upbeat", "fun",
+                      "cheerful", "amazing", "smile", "vibe", "fantastic"],
+            "sad": ["sad", "down", "depressed", "cry", "hurt", "lonely", "tears",
+                    "heartbreak", "upset", "emotional", "gloomy"],
+            "angry": ["angry", "mad", "frustrated", "rage", "hate", "annoy", "pissed",
+                      "furious", "heavy", "hard", "aggressive"],
+            "energetic": ["energetic", "energy", "hype", "pump", "gym", "workout",
+                          "fast", "intense", "excited", "up", "beast"],
+            "calm": ["relax", "chill", "calm", "peace", "slow", "quiet", "lofi",
+                     "mellow", "soothing", "zen"],
+            "romantic": ["love", "romantic", "date", "crush", "heart", "sweet",
+                         "couple", "beautiful", "affection"],
+            "nostalgic": ["nostalgic", "memory", "old", "throwback", "classic",
+                          "retro", "childhood", "past", "90s", "80s", "2000s"],
+            "focused": ["focus", "study", "work", "concentrate", "deep", "coding",
+                        "reading", "programming", "task"],
+            "party": ["party", "club", "dance", "dj", "weekend", "lit", "crazy",
+                      "celebration", "drinks"],
+            "sleepy": ["sleep", "tired", "bed", "dream", "nap", "lullaby", "snooze",
+                       "night"],
         }
-        self.nsfw_blacklist = ['porn', 'sex', 'fuck', 'shit', 'bitch', 'ass', 'dick', 'nude']
+
+        self.nsfw_blacklist = {"porn", "sex", "fuck", "shit", "bitch", "ass", "dick", "nude"}
         print("Semantic Analyzer Online.")
 
+    # ── internal ──────────────────────────────────────────────────────────────
+
     def _analyze_transcription(self, transcription):
-        words = transcription.split()
+        words = set(transcription.lower().split())
 
-        if any(bad_word in words for bad_word in self.nsfw_blacklist):
+        if words & self.nsfw_blacklist:
             print("🚨 SAFETY ALERT: Inappropriate content detected. Blocking request.")
-            return 'blocked'
+            return "blocked"
 
-        detected_mood = 'calm'  # Default fallback
-        highest_score = 0
         scores = {mood: 0 for mood in self.mood_keywords}
-
         for word in words:
             for mood, keywords in self.mood_keywords.items():
                 if word in keywords:
                     scores[mood] += 1
 
-        # Find the mood with the most keyword hits
-        for mood, score in scores.items():
-            if score > highest_score:
-                highest_score = score
-                detected_mood = mood
+        best_mood = max(scores, key=lambda m: scores[m])
+        if scores[best_mood] > 0:
+            print(f"🎯 Detected: {best_mood.upper()} (score: {scores[best_mood]})")
+            return best_mood
 
-        if highest_score > 0:
-            print(f"🎯 Command Detected: {detected_mood.upper()} (Keyword Score: {highest_score})")
-        else:
-            print("⚠️ No strong keywords detected. Defaulting to CALM.")
+        print("⚠️ No strong keywords detected. Defaulting to CALM.")
+        return "calm"
 
-        return detected_mood
+    # ── public ────────────────────────────────────────────────────────────────
 
-    def analyze_text(self, text: str):
-        """Analyzes direct text input using the same safety and mood scoring logic as voice."""
-        transcription = (text or '').lower().strip()
-        if not transcription:
-            print("⚠️ Empty text input. Defaulting to CALM.")
-            return 'calm'
+    def analyze_text(self, text: str) -> str:
+        text = (text or "").lower().strip()
+        if not text:
+            return "calm"
+        print(f'📝 Text received: "{text}"')
+        return self._analyze_transcription(text)
 
-        print(f"📝 Text received: \"{transcription}\"")
-        return self._analyze_transcription(transcription)
-
-    def analyze_file(self, file_path):
-        """
-        Converts the React .webm to audio, transcribes it, and maps it to a mood.
-        """
-        print(f"\n📂 Processing frontend audio: {file_path}")
+    def analyze_file(self, file_path: str) -> str:
+        print(f"\n📂 Processing audio: {file_path}")
         wav_path = file_path.replace(".webm", ".wav")
-        
+
         try:
-            # 1. Convert WebM to standard WAV format so the Recognizer can read it
-            print("🔄 Converting WebM to WAV format...")
+            print("🔄 Converting to WAV...")
             audio = AudioSegment.from_file(file_path)
             audio.export(wav_path, format="wav")
-            
-            # 2. Extract the audio data
+
             with sr.AudioFile(wav_path) as source:
-                # Adjust for ambient noise just in case your mic has static
                 self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
                 audio_data = self.recognizer.record(source)
-                
+
             try:
-                # 3. Transcribe the audio to text using Google's free API
-                print("🧠 Transcribing audio to text...")
+                print("🧠 Transcribing...")
                 transcription = self.recognizer.recognize_google(audio_data).lower()
-                print(f"📝 You said: \"{transcription}\"")
+                print(f'📝 Heard: "{transcription}"')
                 return self._analyze_transcription(transcription)
-                
             except sr.UnknownValueError:
-                print("⚠️ Could not understand the audio (too quiet/muffled). Defaulting to CALM.")
-                return 'calm'
+                print("⚠️ Could not understand audio. Defaulting to CALM.")
+                return "calm"
             except sr.RequestError as e:
                 print(f"❌ Speech Recognition API error: {e}")
-                return 'calm'
-                
+                return "calm"
+
         except Exception as e:
-            print(f"❌ Error processing file: {e}")
-            return 'calm'
-            
+            print(f"❌ Error processing audio file: {e}")
+            return "calm"
+
         finally:
-            # Clean up the temporary WAV file so your hard drive doesn't fill up
             if os.path.exists(wav_path):
                 os.remove(wav_path)

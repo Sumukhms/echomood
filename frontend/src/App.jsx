@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import VoiceInputPanel from "./components/VoiceInputPanel";
 import TextInputPanel from "./components/TextInputPanel";
 import WebcamPanel from "./components/WebcamPanel";
@@ -11,25 +11,68 @@ import AuthScreen from "./components/AuthScreen";
 import Home from "./components/Home";
 import Sidebar from "./components/Sidebar";
 
-function App() {
+// Normalise so GlobalPlayer always reads .file_url
+function normaliseTrack(t) {
+  return { ...t, file_url: t.file_url || t.preview_url || "" };
+}
+
+function EmptyState({ message, hint }) {
+  return (
+    <div className="p-10 text-center border rounded-2xl border-white/10 bg-white/5 backdrop-blur-md">
+      <p className="text-sm text-zinc-300">{message}</p>
+      {hint && <p className="text-xs text-zinc-500 mt-2">{hint}</p>}
+    </div>
+  );
+}
+
+export default function App() {
   const [systemActive, setSystemActive] = useState(false);
   const [detectedMood, setDetectedMood] = useState(null);
   const [recommendedTracks, setRecommendedTracks] = useState([]);
   const [activeTab, setActiveTab] = useState("home");
   const [aiInputMode, setAiInputMode] = useState("voice");
+  const [userProfile, setUserProfile] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Queue never resets on tab change
   const [queue, setQueue] = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [activePlaylist, setActivePlaylist] = useState(null);
 
-  // NEW: Store user profile data
-  const [userProfile, setUserProfile] = useState(null);
+  const playTrack = useCallback((trackList, startIndex) => {
+    if (!Array.isArray(trackList) || trackList.length === 0) return;
+    const safeIndex = Math.max(0, Math.min(startIndex, trackList.length - 1));
+    setQueue(trackList.map(normaliseTrack));
+    setCurrentTrackIndex(safeIndex);
+  }, []);
+
+  const playNext = useCallback(() => {
+    setCurrentTrackIndex((prev) =>
+      prev < queue.length - 1 ? prev + 1 : prev
+    );
+  }, [queue.length]);
+
+  const playPrevious = useCallback(() => {
+    setCurrentTrackIndex((prev) => (prev > 0 ? prev - 1 : prev));
+  }, []);
+
+  // Single universal handler used by ALL panels
+  // signature: handlePlay(clickedTrack, fullTrackList)
+  const handlePlay = useCallback(
+    (clickedTrack, trackList) => {
+      const list = Array.isArray(trackList) ? trackList : [clickedTrack];
+      const needle = clickedTrack.file_url || clickedTrack.preview_url;
+      const idx = list.findIndex(
+        (t) => (t.file_url || t.preview_url) === needle
+      );
+      playTrack(list, idx >= 0 ? idx : 0);
+    },
+    [playTrack]
+  );
 
   const handleOnboardingComplete = (preferences) => {
     setUserProfile(preferences);
-    setSystemActive(true); // Jump straight to the mic after onboarding!
+    setSystemActive(true);
     setActiveTab("ai-dj");
-    setAiInputMode("voice");
   };
 
   const handleMoodDetected = (mood, tracks) => {
@@ -37,97 +80,55 @@ function App() {
     setRecommendedTracks(tracks);
   };
 
-  const resetSystem = () => {
-    setDetectedMood(null);
-    setRecommendedTracks([]);
-  };
+  if (!currentUser) return <AuthScreen setAuth={setCurrentUser} />;
 
-  if (!currentUser) {
-    return <AuthScreen setAuth={setCurrentUser} />;
-  }
+  const isDashboard = systemActive === true;
 
-  const playTrack = (trackList, startIndex) => {
-    if (!Array.isArray(trackList) || trackList.length === 0) return;
-    const safeStartIndex = Math.max(
-      0,
-      Math.min(startIndex, trackList.length - 1),
-    );
-    setQueue(trackList);
-    setCurrentTrackIndex(safeStartIndex);
-  };
-
-  const playNext = () => {
-    setCurrentTrackIndex((prevIndex) => {
-      if (queue.length === 0) return 0;
-      return Math.min(prevIndex + 1, queue.length - 1);
-    });
-  };
-
-  const playPrevious = () => {
-    setCurrentTrackIndex((prevIndex) => Math.max(prevIndex - 1, 0));
-  };
-
-  const isDashboardActive = systemActive === true;
-
+  // ── AI DJ panel ─────────────────────────────────────────────────────────────
   const renderAiDjPanel = () => {
     if (recommendedTracks.length === 0) {
       return (
         <div className="w-full max-w-2xl mx-auto text-center">
-          <p className="text-gold-400 text-sm mb-6">
-            Calibrated for: {userProfile.languages.join(", ")}
-          </p>
+          {userProfile?.languages?.length > 0 && (
+            <p className="text-gold-400 text-sm mb-6">
+              Calibrated for: {userProfile.languages.join(", ")}
+            </p>
+          )}
           <div className="inline-flex p-1 border rounded-full bg-white/5 border-white/10 mb-5">
-            <button
-              onClick={() => setAiInputMode("voice")}
-              className={`px-5 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
-                aiInputMode === "voice"
-                  ? "bg-gold-500 text-black"
-                  : "text-zinc-300 hover:text-white"
-              }`}
-            >
-              Voice Mode
-            </button>
-            <button
-              onClick={() => setAiInputMode("text")}
-              className={`px-5 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
-                aiInputMode === "text"
-                  ? "bg-gold-500 text-black"
-                  : "text-zinc-300 hover:text-white"
-              }`}
-            >
-              Text Mode
-            </button>
-            <button
-              onClick={() => setAiInputMode("camera")}
-              className={`px-5 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
-                aiInputMode === "camera"
-                  ? "bg-gold-500 text-black"
-                  : "text-zinc-300 hover:text-white"
-              }`}
-            >
-              Camera Mode
-            </button>
+            {[
+              { id: "voice", label: "Voice Mode" },
+              { id: "text", label: "Text Mode" },
+              { id: "camera", label: "Camera Mode" },
+            ].map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setAiInputMode(id)}
+                className={`px-5 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
+                  aiInputMode === id
+                    ? "bg-gold-500 text-black"
+                    : "text-zinc-300 hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          {aiInputMode === "voice" ? (
+          {aiInputMode === "voice" && (
             <VoiceInputPanel
               userProfile={userProfile}
-              onAnalyzeComplete={(mood, tracks) =>
-                handleMoodDetected(mood, tracks)
-              }
+              onAnalyzeComplete={handleMoodDetected}
             />
-          ) : aiInputMode === "text" ? (
+          )}
+          {aiInputMode === "text" && (
             <TextInputPanel
               userProfile={userProfile}
-              onAnalyzeComplete={(mood, tracks) =>
-                handleMoodDetected(mood, tracks)
-              }
+              onAnalyzeComplete={handleMoodDetected}
             />
-          ) : (
+          )}
+          {aiInputMode === "camera" && (
             <WebcamPanel
               userProfile={userProfile}
-              onAnalyzeComplete={(mood, tracks) =>
-                handleMoodDetected(mood, tracks)
-              }
+              onAnalyzeComplete={handleMoodDetected}
             />
           )}
         </div>
@@ -146,71 +147,42 @@ function App() {
             </h3>
           </div>
           <button
-            onClick={resetSystem}
-            className="px-6 py-2 text-xs tracking-widest text-white border rounded-full border-white/20 hover:bg-white/10"
+            onClick={() => {
+              setDetectedMood(null);
+              setRecommendedTracks([]);
+            }}
+            className="px-6 py-2 text-xs tracking-widest text-white border rounded-full border-white/20 hover:bg-white/10 transition-colors"
           >
             NEW SCAN
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recommendedTracks.map((track, index) => (
-            <SongCard
-              key={index}
-              track={track}
-              username={currentUser.username}
-              onPlay={(clickedTrack, fullTrackList) => {
-                const selectedIndex = fullTrackList.findIndex(
-                  (listTrack) =>
-                    listTrack.preview_url === clickedTrack.preview_url,
-                );
-                playTrack(
-                  fullTrackList,
-                  selectedIndex >= 0 ? selectedIndex : 0,
-                );
-              }}
-              recommendedTracks={recommendedTracks}
-            />
-          ))}
-        </div>
+
+        {recommendedTracks.length === 0 ? (
+          <EmptyState
+            message="No tracks returned for this mood."
+            hint="Try scanning again or switch languages in onboarding."
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {recommendedTracks.map((track, index) => (
+              <SongCard
+                key={`${track.preview_url || track.file_url}-${index}`}
+                track={track}
+                username={currentUser.username}
+                onPlay={handlePlay}
+                recommendedTracks={recommendedTracks}
+              />
+            ))}
+          </div>
+        )}
       </div>
     );
   };
 
-  const renderVaultPanel = () => (
-    <div className="w-full">
-      <div className="flex justify-center mb-8">
-        <VaultUpload username={currentUser.username} />
-      </div>
-      <div className="w-full max-w-5xl mx-auto mb-8">
-        <div className="h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-      </div>
-      <VaultGallery
-        username={currentUser.username}
-        onPlayTrack={(clickedTrack, fullLocalTracks) => {
-          const selectedIndex = fullLocalTracks.findIndex(
-            (listTrack) => listTrack.file_url === clickedTrack.file_url,
-          );
-          playTrack(fullLocalTracks, selectedIndex >= 0 ? selectedIndex : 0);
-        }}
-      />
-    </div>
-  );
-
-  const renderHomePanel = () => (
-    <Home
-      currentUser={currentUser}
-      onPlayTrack={(clickedTrack, fullTrackList) => {
-        const selectedIndex = fullTrackList.findIndex(
-          (listTrack) => listTrack.preview_url === clickedTrack.preview_url,
-        );
-        playTrack(fullTrackList, selectedIndex >= 0 ? selectedIndex : 0);
-      }}
-    />
-  );
-
+  // ── render ──────────────────────────────────────────────────────────────────
   return (
     <div className="relative min-h-screen font-sans text-zinc-200 bg-zinc-950 overflow-x-hidden pb-28">
-      {/* Background stays the same... */}
+      {/* Ambient background */}
       <div
         className="fixed inset-0 z-0 bg-center bg-cover opacity-40 mix-blend-luminosity"
         style={{
@@ -221,96 +193,113 @@ function App() {
       />
       <div className="fixed inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0)_0%,rgba(9,9,11,1)_100%)]" />
 
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6 py-20">
-        {/* Header */}
-        <div
-          className={`text-center transition-all duration-1000 ${recommendedTracks.length > 0 ? "mb-12" : "mb-0"}`}
-        >
-          <h2 className="text-gold-500 uppercase tracking-[0.3em] text-xs font-semibold mb-3">
-            Premium Auditory Experience
-          </h2>
-          <h1 className="mb-4 font-serif text-5xl font-medium tracking-wide text-white italic md:text-6xl">
-            Echomood
-          </h1>
-        </div>
+      {/* Layout: sidebar + scrollable main */}
+      <div className="relative z-10 flex min-h-screen">
+        {isDashboard && (
+          <Sidebar
+            username={currentUser.username}
+            onSelectPlaylist={(playlist) => {
+              if (playlist?.tracks?.length > 0) {
+                playTrack(playlist.tracks, 0);
+              }
+            }}
+          />
+        )}
 
-        {/* State 1: The Welcome / Start Button */}
-        {!systemActive && !userProfile && (
-          <div className="w-full max-w-2xl p-12 text-center border backdrop-blur-xl bg-white/5 border-white/10 rounded-3xl animate-fade-in">
-            <p className="max-w-md mx-auto mb-10 text-sm font-light leading-relaxed text-zinc-400">
-              Discover curated soundscapes tailored to your exact emotional
-              frequency.
-            </p>
-            <button
-              onClick={() => setSystemActive("onboarding")} // Change state to onboarding
-              className="px-8 py-3 text-sm tracking-widest text-black transition-all rounded-full bg-gold-500 hover:bg-gold-400"
-            >
-              INITIALIZE SYSTEM
-            </button>
+        <main className="flex flex-col items-center flex-1 min-w-0 p-6 py-16">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h2 className="text-gold-500 uppercase tracking-[0.3em] text-xs font-semibold mb-3">
+              Premium Auditory Experience
+            </h2>
+            <h1 className="font-serif text-5xl font-medium tracking-wide text-white italic md:text-6xl">
+              Echomood
+            </h1>
           </div>
-        )}
 
-        {/* State 2: Onboarding Screen */}
-        {systemActive === "onboarding" && (
-          <Onboarding onComplete={handleOnboardingComplete} />
-        )}
+          {/* Welcome screen */}
+          {!systemActive && !userProfile && (
+            <div className="w-full max-w-2xl p-12 text-center border backdrop-blur-xl bg-white/5 border-white/10 rounded-3xl">
+              <p className="max-w-md mx-auto mb-10 text-sm font-light leading-relaxed text-zinc-400">
+                Discover curated soundscapes tailored to your exact emotional
+                frequency.
+              </p>
+              <button
+                onClick={() => setSystemActive("onboarding")}
+                className="px-8 py-3 text-sm tracking-widest text-black transition-all rounded-full bg-gold-500 hover:bg-gold-400"
+              >
+                INITIALIZE SYSTEM
+              </button>
+            </div>
+          )}
 
-        {/* State 3: Main Dashboard */}
-        {isDashboardActive && (
-          <div className="w-full max-w-6xl mt-10 animate-fade-in">
-            <div className="w-full mb-8 border border-white/10 bg-black/30 backdrop-blur-xl rounded-2xl">
-              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-[11px] tracking-[0.25em] uppercase text-zinc-500">
-                    Dashboard
-                  </p>
-                  <h3 className="text-lg font-serif text-white">
-                    Your Listening Command Center
-                  </h3>
+          {/* Onboarding */}
+          {systemActive === "onboarding" && (
+            <Onboarding onComplete={handleOnboardingComplete} />
+          )}
+
+          {/* Dashboard */}
+          {isDashboard && (
+            <div className="w-full max-w-6xl">
+              {/* Tab bar */}
+              <div className="w-full mb-8 border border-white/10 bg-black/30 backdrop-blur-xl rounded-2xl">
+                <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[11px] tracking-[0.25em] uppercase text-zinc-500">
+                      Dashboard
+                    </p>
+                    <h3 className="text-lg font-serif text-white">
+                      {currentUser.username}&apos;s Command Center
+                    </h3>
+                  </div>
+                  <div className="inline-flex p-1 border rounded-full bg-white/5 border-white/10">
+                    {[
+                      { id: "home", label: "Home" },
+                      { id: "ai-dj", label: "AI DJ" },
+                      { id: "vault", label: "Personal Vault" },
+                    ].map(({ id, label }) => (
+                      <button
+                        key={id}
+                        onClick={() => setActiveTab(id)}
+                        className={`px-6 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
+                          activeTab === id
+                            ? "bg-gold-500 text-black"
+                            : "text-zinc-300 hover:text-white"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="inline-flex p-1 border rounded-full bg-white/5 border-white/10">
-                  <button
-                    onClick={() => setActiveTab("home")}
-                    className={`px-6 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
-                      activeTab === "home"
-                        ? "bg-gold-500 text-black"
-                        : "text-zinc-300 hover:text-white"
-                    }`}
-                  >
-                    Home
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("ai-dj")}
-                    className={`px-6 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
-                      activeTab === "ai-dj"
-                        ? "bg-gold-500 text-black"
-                        : "text-zinc-300 hover:text-white"
-                    }`}
-                  >
-                    AI DJ
-                  </button>
-                  <button
-                    onClick={() => setActiveTab("vault")}
-                    className={`px-6 py-2 text-xs tracking-widest uppercase rounded-full transition-all ${
-                      activeTab === "vault"
-                        ? "bg-gold-500 text-black"
-                        : "text-zinc-300 hover:text-white"
-                    }`}
-                  >
-                    Personal Vault
-                  </button>
+              </div>
+
+              {/* Panels — all mounted, visibility toggled to preserve state */}
+              <div className={activeTab === "home" ? "block" : "hidden"}>
+                <Home currentUser={currentUser} onPlayTrack={handlePlay} />
+              </div>
+
+              <div className={activeTab === "ai-dj" ? "block" : "hidden"}>
+                {renderAiDjPanel()}
+              </div>
+
+              <div className={activeTab === "vault" ? "block" : "hidden"}>
+                <div className="w-full">
+                  <div className="flex justify-center mb-8">
+                    <VaultUpload username={currentUser.username} />
+                  </div>
+                  <div className="h-px w-full bg-gradient-to-r from-transparent via-white/30 to-transparent mb-8" />
+                  <VaultGallery
+                    username={currentUser.username}
+                    onPlayTrack={handlePlay}
+                  />
                 </div>
               </div>
             </div>
-
-            {activeTab === "home"
-              ? renderHomePanel()
-              : activeTab === "ai-dj"
-                ? renderAiDjPanel()
-                : renderVaultPanel()}
-          </div>
-        )}
+          )}
+        </main>
       </div>
+
       <GlobalPlayer
         queue={queue}
         currentTrackIndex={currentTrackIndex}
@@ -320,5 +309,3 @@ function App() {
     </div>
   );
 }
-
-export default App;
