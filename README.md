@@ -1,3 +1,11 @@
+---
+title: EchoMood API
+emoji: ??
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
 # 🎵 EchoMood
 
 EchoMood is an advanced, AI-powered music streaming and discovery platform. It goes beyond simple playlists by utilizing semantic multi-modal analysis (Voice, Text, and Facial emotion) to actively curate the perfect listening experience for your current mood. 
