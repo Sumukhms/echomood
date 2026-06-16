@@ -1,4 +1,4 @@
-const CACHE_NAME = "echomood-v1";
+const CACHE_NAME = "echomood-v2";
 const ASSETS = [
   "/",
   "/index.html",
@@ -33,18 +33,34 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   // Don't cache API calls
-  if (event.request.url.includes("/api/")) {
+  if (event.request.url.includes("/api/") || event.request.url.includes(":5000")) {
     return;
   }
   
+  // Network-first strategy for navigation (HTML) to avoid serving stale build hashes
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept').includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          const resClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Cache-first for other assets (images, css, js)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
       return fetch(event.request).then((response) => {
-        // Cache external covers/images optionally if needed
         return response;
+      }).catch(() => {
+        // Return offline fallback if necessary
       });
     })
   );
