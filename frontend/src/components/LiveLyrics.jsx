@@ -97,23 +97,42 @@ export default function LiveLyrics({ track, currentTime, onLineChange }) {
   return (
     <div
       ref={containerRef}
-      className="h-full max-h-[60vh] overflow-y-auto px-4 md:px-12 py-[30vh] space-y-6 scrollbar-hide"
+      className="h-full max-h-[60vh] overflow-y-auto px-4 md:px-12 py-[30vh] space-y-6 scrollbar-hide relative"
       style={{ scrollBehavior: 'smooth', msOverflowStyle: 'none', scrollbarWidth: 'none' }}
     >
+      <style>
+        {`
+          @keyframes karaokeFill {
+            0% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+          }
+          .karaoke-fill {
+            background: linear-gradient(to right, #ffffff 50%, rgba(255, 255, 255, 0.4) 50%);
+            background-size: 200% auto;
+            background-position: 100% 50%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: karaokeFill 2.5s linear forwards;
+          }
+        `}
+      </style>
       {lyrics.map((line, index) => {
         const isActive = index === activeIndex;
-        const isPast = index < activeIndex;
         return (
           <div
             key={index}
-            className={`transition-all duration-700 ease-out origin-left ${
+            className={
               isActive
-                ? "text-white text-4xl md:text-6xl font-bold scale-100 opacity-100 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]"
-                : isPast
-                  ? "text-zinc-500 text-2xl md:text-4xl font-medium scale-95 opacity-40"
-                  : "text-zinc-400 text-3xl md:text-5xl font-semibold scale-95 opacity-60"
-            }`}
-            style={isActive ? { textShadow: "0 0 30px rgba(255,255,255,0.4)" } : {}}
+                ? "text-3xl sm:text-4xl lg:text-5xl font-bold text-white shadow-[0_0_20px_rgba(255,255,255,0.3)] transition-all duration-700 ease-out transform scale-105 origin-left karaoke-fill"
+                : "text-white opacity-30 text-lg sm:text-xl font-medium transition-all duration-700 hover:opacity-60"
+            }
+            style={isActive ? { 
+              padding: "0.5rem 1rem",
+              borderRadius: "0.5rem",
+              backgroundColor: "rgba(255,255,255,0.05)"
+            } : {
+              padding: "0.5rem 1rem"
+            }}
           >
             {line.text || "♪"}
           </div>

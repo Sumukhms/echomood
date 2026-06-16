@@ -50,6 +50,7 @@ export default function App() {
   const [aiExplanation, setAiExplanation] = useState(null);
   const [activeTab, setActiveTab] = useState("home");
   const [isDjVoiceEnabled, setIsDjVoiceEnabled] = useState(true);
+  
   const [userProfile, setUserProfile] = useState(null);
   const [currentUser, setCurrentUser] = useState(() => {
     try {
@@ -90,6 +91,36 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Deep-Link Sharing Parser
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const playQuery = params.get("play");
+    if (playQuery && currentUser?.username) {
+      axios.get(`http://127.0.0.1:5000/api/library/search?q=${encodeURIComponent(playQuery)}&username=${currentUser.username}`)
+        .then(res => {
+          if (res.data.success && res.data.tracks && res.data.tracks.length > 0) {
+            setQueue([res.data.tracks[0]]);
+            setCurrentTrackIndex(0);
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        })
+        .catch(err => console.error("Deep-link error:", err));
+    }
+  }, [currentUser]);
+
+  const playTrackAtIndex = (index) => {
+    setCurrentTrackIndex(index);
+  };
+
+  const removeFromQueue = (index) => {
+    setQueue(prev => prev.filter((_, i) => i !== index));
+    if (index < currentTrackIndex) {
+      setCurrentTrackIndex(prev => prev - 1);
+    } else if (index === currentTrackIndex && index === queue.length - 1) {
+      setCurrentTrackIndex(0);
+    }
+  };
+
   const handleLogout = useCallback(() => {
     localStorage.removeItem("echomood_user");
     setCurrentUser(null);
@@ -101,11 +132,22 @@ export default function App() {
 
   const playTrack = (trackList, startIndex, options = {}) => {
     if (!Array.isArray(trackList) || trackList.length === 0) return;
+    
+    // Collaborative Party Queue: Forward track to host's queue
+    if (partyCode && !isPartyHost) {
+      axios.post("http://127.0.0.1:5000/api/party/add", {
+        code: partyCode,
+        track: normaliseTrack(trackList[startIndex])
+      }).then(() => {
+        // Optional: show a toast notification here
+      }).catch(err => console.error("Failed to add to party queue:", err));
+      return;
+    }
+
     const safeIndex = Math.max(0, Math.min(startIndex, trackList.length - 1));
     setQueue(trackList.map(normaliseTrack));
     setCurrentTrackIndex(safeIndex);
     setIsEndlessSession(!!options.isEndless);
-    setSessionMood(options.seedMood || null);
   };
 
   const playNext = async () => {
@@ -471,6 +513,8 @@ export default function App() {
         setIsShuffle={setIsShuffle}
         repeatMode={repeatMode}
         setRepeatMode={setRepeatMode}
+        playTrackAtIndex={playTrackAtIndex}
+        removeFromQueue={removeFromQueue}
       />
     </div>
   );

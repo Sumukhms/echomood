@@ -1,24 +1,22 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import EchoWrapped from './EchoWrapped';
 
 const LANGUAGES = [
   'Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Malayalam', 'Punjabi', 
   'Spanish', 'French', 'Japanese', 'Korean', 'German', 'Italian',
   'Arabic', 'Portuguese', 'Bengali', 'Marathi', 'Gujarati', 'Urdu'
 ];
-const VIBES = [
-  'Bollywood', 'Indie', 'Lo-Fi', 'EDM', 'Acoustic', 'Classical', 'Hip-Hop',
-  'Romantic', 'Sad', 'Energetic', 'Old Classics', 'Devotional', 'Party', 'Focus',
-  'Pop', 'Rock', 'Jazz', 'Metal', 'Folk', 'Ambient', 'R&B', 'Soul',
-  'Reggaeton', 'K-Pop', 'Anime', 'Workout', 'Sleep', 'Study', 'Road Trip'
-];
 
 export default function Profile({ username, userProfile, onProfileUpdate, onLogout }) {
   const [selectedLanguages, setSelectedLanguages] = useState(userProfile?.languages || []);
-  const [selectedVibes, setSelectedVibes] = useState(userProfile?.vibes || []);
   const [isPublic, setIsPublic] = useState(userProfile?.is_public || false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+
+  const [showWrapped, setShowWrapped] = useState(false);
+  const [wrappedData, setWrappedData] = useState(null);
+
 
   // Vibe Persona states
   const [moodHistory, setMoodHistory] = useState([]);
@@ -37,8 +35,8 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
     return parseFloat(localStorage.getItem(`echomood_rate_${username}`) || '1.0');
   });
 
-  const calculatePersona = (history, vibes) => {
-    const allTags = [...vibes.map(v => v.toLowerCase())];
+  const calculatePersona = (history) => {
+    const allTags = [];
     history.forEach(h => {
       if (h.mood) allTags.push(h.mood.toLowerCase());
     });
@@ -80,17 +78,29 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
         const res = await axios.get(`http://127.0.0.1:5000/api/mood/history?username=${username}`);
         if (res.data?.success && res.data.history) {
           setMoodHistory(res.data.history);
-          calculatePersona(res.data.history, selectedVibes);
+          calculatePersona(res.data.history);
         } else {
-          calculatePersona([], selectedVibes);
+          calculatePersona([]);
         }
       } catch (err) {
         console.error("Failed to fetch history in Profile", err);
-        calculatePersona([], selectedVibes);
+        calculatePersona([]);
       }
     };
     fetchHistory();
-  }, [username, selectedVibes]);
+  }, [username]);
+
+  useEffect(() => {
+    const fetchWrapped = async () => {
+      try {
+        const res = await axios.get(`http://127.0.0.1:5000/api/wrapped?username=${username}`);
+        if (res.data) setWrappedData(res.data);
+      } catch (err) {
+        console.error("Failed to prefetch wrapped data", err);
+      }
+    };
+    if (username) fetchWrapped();
+  }, [username]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
@@ -123,7 +133,7 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
     setIsSaving(true);
     setSaveMessage('');
     try {
-      const preferences = { languages: selectedLanguages, vibes: selectedVibes };
+      const preferences = { languages: selectedLanguages };
       await axios.post("http://127.0.0.1:5000/api/profile", {
         username,
         preferences,
@@ -139,8 +149,68 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
     }
   };
 
+  const getMoodColor = (mood) => {
+    const m = mood?.toLowerCase() || '';
+    if (['calm', 'focus', 'ambient', 'sleep'].includes(m)) return 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.3)]';
+    if (['energetic', 'edm', 'party', 'workout'].includes(m)) return 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]';
+    if (['happy', 'pop', 'bollywood', 'rock'].includes(m)) return 'bg-pink-500 shadow-[0_0_10px_rgba(236,72,153,0.3)]';
+    if (['sad', 'lo-fi', 'indie', 'soul'].includes(m)) return 'bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]';
+    if (['romantic', 'r&b'].includes(m)) return 'bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.3)]';
+    return 'bg-gold-500 shadow-[0_0_10px_rgba(212,175,55,0.3)]';
+  };
+
+  const getMoodWidth = (mood) => {
+    const m = mood?.toLowerCase() || '';
+    let hash = 0;
+    for (let i = 0; i < m.length; i++) {
+      hash = m.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return `${40 + (Math.abs(hash) % 60)}%`;
+  };
+
   return (
     <div className="flex flex-col items-center justify-start w-full max-w-3xl p-10 mx-auto border backdrop-blur-xl bg-white/5 border-white/10 rounded-3xl animate-fade-in mt-4">
+      {(() => {
+        const currentMonth = new Date().getMonth();
+        const isWrappedSeason = currentMonth === 11 || currentMonth === 0; // Dec or Jan
+        
+        if (!isWrappedSeason) return null;
+        
+        return (
+          <button 
+            onClick={() => {
+              if (!wrappedData) {
+                if (moodHistory.length > 0) {
+                  setWrappedData({
+                    total_minutes: moodHistory.length * 3,
+                    top_mood: personaTag.split(' ')[0] || "Vibing",
+                    top_tracks: moodHistory.slice(0, 5).map(m => m.track_name || m.title)
+                  });
+                } else {
+                  setWrappedData({
+                    total_minutes: 42069,
+                    top_mood: "Energetic",
+                    top_tracks: [
+                      { title: "Neon Nights", artist: "Synthwave Master" },
+                      { title: "Midnight Drive", artist: "The Midnight" },
+                      { title: "Starboy", artist: "The Weeknd" }
+                    ]
+                  });
+                }
+              }
+              setShowWrapped(true);
+            }}
+            className="w-full mb-8 p-4 rounded-2xl bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white font-bold text-lg md:text-xl shadow-[0_0_20px_rgba(236,72,153,0.5)] hover:scale-[1.02] transition-transform flex items-center justify-center gap-3 animate-pulse"
+          >
+            <span>✨</span> Your Year in Review <span>✨</span>
+          </button>
+        );
+      })()}
+
+      {showWrapped && (
+        <EchoWrapped wrappedData={wrappedData} onClose={() => setShowWrapped(false)} />
+      )}
+
       <h2 className="text-3xl font-serif text-white mb-2">Your Profile</h2>
       <p className="text-zinc-400 font-light mb-8 text-sm">Account: <span className="text-gold-400 font-medium">{username}</span></p>
 
@@ -180,6 +250,35 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
         </div>
       </div>
 
+      {/* Vibe History */}
+      <div className="w-full mb-10 text-left">
+        <h3 className="text-gold-500 uppercase tracking-widest text-xs font-semibold mb-4">Vibe History</h3>
+        <div className="p-5 border rounded-2xl border-white/10 bg-black/20 space-y-4">
+          {[...moodHistory].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 7).map((entry, idx) => {
+            const moodStr = entry.mood || 'Unknown';
+            const dateStr = new Date(entry.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            return (
+              <div key={idx} className="flex items-center gap-3">
+                <div className="w-28 text-xs text-zinc-400 shrink-0 font-mono">{dateStr}</div>
+                <div className="flex-1 h-7 bg-white/5 rounded-full overflow-hidden relative border border-white/5">
+                  <div 
+                    className={`h-full rounded-full ${getMoodColor(moodStr)} transition-all duration-1000 flex items-center px-3`}
+                    style={{ width: getMoodWidth(moodStr) }}
+                  >
+                    <span className="text-[10px] uppercase tracking-wider text-white font-bold drop-shadow-md">
+                      {moodStr}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {moodHistory.length === 0 && (
+            <p className="text-sm text-zinc-500 text-center py-4">No vibe history yet.</p>
+          )}
+        </div>
+      </div>
+
       {/* Languages Section */}
       <div className="w-full mb-10 text-left">
         <h3 className="text-gold-500 uppercase tracking-widest text-xs font-semibold mb-4">Edit Languages</h3>
@@ -195,26 +294,6 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
               }`}
             >
               {lang}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Vibes Section */}
-      <div className="w-full mb-12 text-left">
-        <h3 className="text-gold-500 uppercase tracking-widest text-xs font-semibold mb-4">Edit Baseline Vibes</h3>
-        <div className="flex flex-wrap gap-3">
-          {VIBES.map(vibe => (
-            <button
-              key={vibe}
-              onClick={() => toggleSelection(vibe, selectedVibes, setSelectedVibes)}
-              className={`px-5 py-2 rounded-full text-sm transition-all duration-300 border ${
-                selectedVibes.includes(vibe) 
-                  ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
-                  : 'bg-transparent border-white/20 text-zinc-300 hover:border-white/50'
-              }`}
-            >
-              {vibe}
             </button>
           ))}
         </div>

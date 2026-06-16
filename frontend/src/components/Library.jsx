@@ -197,49 +197,73 @@ export default function Library({ currentUser, onPlayTrack }) {
           >
             <span>←</span> Back to Library
           </button>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <button
+              onClick={async () => {
+                const shareUrl = `${window.location.origin}/?play=${encodeURIComponent(tracks[0]?.track_name || name)}`;
+                if (navigator.share) {
+                  try {
+                    await navigator.share({
+                      title: `Listen to ${name} on EchoMood`,
+                      text: `Check out this playlist I'm vibing to!`,
+                      url: shareUrl
+                    });
+                  } catch (e) {}
+                } else {
+                  navigator.clipboard.writeText(shareUrl);
+                  alert("Playlist link copied!");
+                }
+              }}
+              className="text-gold-400 hover:text-gold-300 hover:bg-gold-500/10 px-3 py-2 rounded-full text-[10px] sm:text-xs uppercase tracking-widest transition-colors border border-gold-500/20 flex items-center gap-2"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
+              Share
+            </button>
             <button 
               onClick={() => handleTogglePin(_id)}
-              className="text-zinc-400 hover:text-white hover:bg-white/10 px-4 py-2 rounded-full text-xs uppercase tracking-widest transition-colors border border-white/20 flex items-center gap-2"
+              className="text-zinc-400 hover:text-white hover:bg-white/10 px-3 py-2 rounded-full text-[10px] sm:text-xs uppercase tracking-widest transition-colors border border-white/20 flex items-center gap-2"
             >
-              {activePlaylist.is_pinned ? "📌 Unpin Playlist" : "📌 Pin Playlist"}
+              {activePlaylist.is_pinned ? "📌 Unpin" : "📌 Pin"}
             </button>
             <button 
               onClick={() => handleDeletePlaylist(_id)}
-              className="text-red-400 hover:text-red-300 hover:bg-red-500/10 px-4 py-2 rounded-full text-xs uppercase tracking-widest transition-colors border border-red-500/20"
+              className="text-red-400 hover:text-red-300 hover:bg-red-500/10 px-3 py-2 rounded-full text-[10px] sm:text-xs uppercase tracking-widest transition-colors border border-red-500/20"
             >
-              Delete Playlist
+              Delete
             </button>
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row items-end gap-8 mb-10 pb-10 border-b border-white/10">
-          <div className="w-52 h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
+        <div className="flex flex-col md:flex-row items-center md:items-end text-center md:text-left gap-8 mb-10 pb-10 border-b border-white/10">
+          <div className="w-48 h-48 md:w-52 md:h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
             {coverImage ? (
               <img src={coverImage} alt="playlist cover" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-900 flex items-center justify-center text-4xl">🎧</div>
             )}
           </div>
-          <div>
+          <div className="flex flex-col items-center md:items-start w-full">
             <p className="text-xs uppercase tracking-widest text-white block mb-2 font-bold">Custom Playlist</p>
             {isEditingName ? (
-              <input
-                type="text"
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                onBlur={handleRenamePlaylist}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleRenamePlaylist();
-                  if (e.key === 'Escape') setIsEditingName(false);
-                }}
-                autoFocus
-                className="bg-white/10 text-white text-3xl md:text-5xl font-black rounded px-3 py-1 outline-none border border-gold-500 max-w-full"
-              />
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full max-w-lg">
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onBlur={handleRenamePlaylist}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleRenamePlaylist();
+                    if (e.key === 'Escape') setIsEditingName(false);
+                  }}
+                  autoFocus
+                  className="bg-white/10 text-white text-3xl md:text-5xl font-black rounded px-3 py-1 outline-none border border-gold-500 w-full text-center md:text-left"
+                />
+                <button onClick={handleRenamePlaylist} className="px-4 py-2 bg-gold-500 text-black font-bold rounded">Save</button>
+              </div>
             ) : (
-              <div className="flex items-center gap-3 group/title">
+              <div className="flex items-center justify-center md:justify-start gap-3 group/title w-full">
                 <h1 
-                  className="text-5xl md:text-7xl font-black text-white tracking-tighter mb-4 cursor-pointer hover:text-gold-400 transition-colors"
+                  className="text-4xl sm:text-5xl md:text-7xl font-black text-white tracking-tighter mb-4 cursor-pointer hover:text-gold-400 transition-colors text-center md:text-left break-words max-w-full"
                   onDoubleClick={() => {
                     setEditedName(name);
                     setIsEditingName(true);
@@ -266,17 +290,17 @@ export default function Library({ currentUser, onPlayTrack }) {
         </div>
 
         {tracks.length > 0 && (
-          <div className="mb-10 flex gap-4">
+          <div className="mb-10 flex flex-wrap gap-4 items-center justify-center md:justify-start">
             <button 
               onClick={() => onPlayTrack(tracks[0], tracks)}
-              className="w-16 h-16 flex items-center justify-center rounded-full bg-gold-500 text-black hover:scale-105 transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_30px_rgba(234,179,8,0.5)]"
+              className="w-14 h-14 sm:w-16 sm:h-16 flex-shrink-0 flex items-center justify-center rounded-full bg-gold-500 text-black hover:scale-105 transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_30px_rgba(234,179,8,0.5)]"
             >
-              <span className="text-2xl ml-1">▶</span>
+              <span className="text-xl sm:text-2xl ml-1">▶</span>
             </button>
             <button
               onClick={handleGenerateRadio}
               disabled={isGeneratingRadio}
-              className="px-6 py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all font-medium tracking-wide border border-white/10 disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all text-xs sm:text-sm font-medium tracking-wide border border-white/10 disabled:opacity-50 flex items-center gap-2"
             >
               {isGeneratingRadio ? "📻 Generating..." : "📻 Start Smart Radio"}
             </button>
@@ -298,11 +322,11 @@ export default function Library({ currentUser, onPlayTrack }) {
                 onClick={() => onPlayTrack(track, tracks)}
                 className="group flex items-center p-3 hover:bg-white/10 rounded-lg cursor-grab active:cursor-grabbing transition-colors"
               >
-                <div className="w-8 text-center text-zinc-500 group-hover:hidden text-sm flex items-center justify-center cursor-move" title="Drag to reorder">
-                  <span className="text-xs opacity-50 mr-1">☰</span>
+                <div className="w-8 text-center text-zinc-500 group-hover:hidden text-xs sm:text-sm flex items-center justify-center cursor-move" title="Drag to reorder">
+                  <span className="text-[10px] sm:text-xs opacity-50 mr-0.5 sm:mr-1">☰</span>
                   {idx + 1}
                 </div>
-                <div className="w-8 text-center text-white hidden group-hover:block text-sm">
+                <div className="w-8 text-center text-white hidden group-hover:block text-xs sm:text-sm">
                   ▶
                 </div>
                 
@@ -340,7 +364,7 @@ export default function Library({ currentUser, onPlayTrack }) {
                           }
                         }
                       }}
-                      className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-400 p-2 transition-all"
+                      className="opacity-100 md:opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-400 p-2 transition-all flex-shrink-0"
                       title="Remove from playlist"
                     >
                       🗑️
