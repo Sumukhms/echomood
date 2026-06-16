@@ -24,8 +24,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend source code
 COPY . .
 
-# Expose port 5000
-EXPOSE 5000
+# Expose port 7860 (required by Hugging Face Spaces)
+EXPOSE 7860
 
 # Start Flask with Gunicorn production WSGI server
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "ai_server:app", "--timeout", "120"]
+CMD ["gunicorn", "--bind", "0.0.0.0:7860", "ai_server:app", "--timeout", "120"]
