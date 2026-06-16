@@ -61,6 +61,29 @@ export default function App() {
     }
   });
 
+  // PWA Install Prompt State
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
+
   // Party Mode State
   const [partyCode, setPartyCode] = useState(null);
   const [isPartyHost, setIsPartyHost] = useState(false);
@@ -364,6 +387,34 @@ export default function App() {
         )}
 
         <main className="flex flex-col items-center flex-1 min-w-0 p-6 py-16">
+          
+          {/* PWA Install Banner */}
+          {deferredPrompt && (
+            <div className="fixed top-0 left-0 right-0 bg-zinc-900 border-b border-gold-500/30 text-white px-4 py-3 flex items-center justify-between z-50 shadow-lg">
+              <div className="flex items-center gap-3">
+                <img src="/logo.png" alt="EchoMood" className="w-8 h-8 rounded-lg shadow-lg" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-white tracking-wide">Install EchoMood</span>
+                  <span className="text-[10px] text-zinc-300">Add to your home screen for the full app experience.</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleInstallClick}
+                  className="bg-gold-500 text-black text-xs font-bold px-4 py-1.5 rounded-full hover:bg-gold-400 transition-colors shadow-lg"
+                >
+                  Install
+                </button>
+                <button 
+                  onClick={() => setDeferredPrompt(null)}
+                  className="text-zinc-400 hover:text-white p-1"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div className="text-center mb-8">
             <h2 className="text-gold-500 uppercase tracking-[0.3em] text-xs font-semibold mb-3">
