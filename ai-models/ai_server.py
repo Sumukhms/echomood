@@ -639,12 +639,35 @@ def get_youtube_url():
     if not query:
         return jsonify({"success": False, "error": "Query required"}), 400
         
+    # Check for official YouTube API Key in environment
+    api_key = os.getenv("YOUTUBE_API_KEY")
+    if api_key:
+        try:
+            import urllib.parse
+            # Clean and encode query
+            strict_query = query + " official audio"
+            encoded_query = urllib.parse.quote(strict_query)
+            url = f"https://www.googleapis.com/youtube/v3/search?part=id&q={encoded_query}&type=video&maxResults=1&key={api_key}"
+            
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                items = data.get("items", [])
+                if items:
+                    video_id = items[0].get("id", {}).get("videoId")
+                    if video_id:
+                        watch_url = f"https://www.youtube.com/watch?v={video_id}"
+                        return jsonify({"success": True, "youtube_url": watch_url, "video_id": video_id})
+        except Exception as e:
+            print(f"Error calling YouTube API: {e}")
+            # Fallback to scraping if API fails (e.g. quota limit exceeded)
+            
+    # Fallback: Scrape YouTube (works locally, might fail in cloud due to blocks)
     try:
         import urllib.request
         import urllib.parse
         import re
         
-        # Enhance query to prevent picking up 1-hour mixes or full albums
         strict_query = query + " official audio -full -album -mix -hour"
         search_query = urllib.parse.quote(strict_query)
         url = f"https://www.youtube.com/results?search_query={search_query}"
@@ -662,8 +685,9 @@ def get_youtube_url():
             return jsonify({"success": True, "youtube_url": watch_url, "video_id": video_id})
     except Exception as e:
         print(f"Error scraping YouTube for '{query}': {e}")
+        return jsonify({"success": False, "error": f"Scraping error: {str(e)}"}), 200
         
-    return jsonify({"success": False, "error": "Could not find video"}), 500
+    return jsonify({"success": False, "error": "Could not find video"}), 200
 
 
 # ── lyrics ────────────────────────────────────────────────────────────────────
