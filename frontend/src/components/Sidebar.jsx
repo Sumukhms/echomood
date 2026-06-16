@@ -1,18 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
-export default function Sidebar({ username, onSelectPlaylist }) {
+export default function Sidebar({ username, onSelectPlaylist, onLogout }) {
   const [playlists, setPlaylists] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [newName, setNewName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (username) fetchPlaylists();
-  }, [username]);
-
-  const fetchPlaylists = async () => {
+  const fetchPlaylists = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await axios.get(
@@ -24,7 +20,13 @@ export default function Sidebar({ username, onSelectPlaylist }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [username]);
+
+  useEffect(() => {
+    if (username) fetchPlaylists();
+    window.addEventListener('libraryUpdate', fetchPlaylists);
+    return () => window.removeEventListener('libraryUpdate', fetchPlaylists);
+  }, [username, fetchPlaylists]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -92,31 +94,79 @@ export default function Sidebar({ username, onSelectPlaylist }) {
       <div className="h-px bg-white/10" />
 
       {/* Playlist list */}
-      <div className="flex flex-col gap-1 overflow-y-auto flex-1">
+      <div className="flex flex-col flex-1 overflow-hidden">
         {isLoading && (
-          <p className="text-xs text-zinc-500 px-1">Loading playlists…</p>
+          <div className="flex flex-col gap-2 px-1 mt-2">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="w-full h-8 bg-white/5 rounded-lg animate-pulse" />
+            ))}
+          </div>
         )}
         {!isLoading && playlists.length === 0 && (
           <p className="text-xs text-zinc-600 px-1 italic">No playlists yet</p>
         )}
-        {playlists.map((p) => (
-          <button
-            key={p._id}
-            onClick={() => handleSelect(p)}
-            className={`text-left px-3 py-2 rounded-lg text-sm transition-all truncate ${
-              activeId === p._id
-                ? "bg-white/10 text-gold-400"
-                : "text-zinc-400 hover:text-white hover:bg-white/5"
-            }`}
-          >
-            {p.name}
-            {p.tracks?.length > 0 && (
-              <span className="ml-1 text-[10px] text-zinc-600">
-                ({p.tracks.length})
-              </span>
+        
+        {!isLoading && playlists.length > 0 && (
+          <div className="flex flex-col h-full gap-4">
+            {/* Pinned Section */}
+            {playlists.filter(p => p.is_pinned).length > 0 && (
+              <div className="flex flex-col gap-1">
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest px-2 mb-1">Pinned</h3>
+                {playlists.filter(p => p.is_pinned).map(p => (
+                  <button
+                    key={p._id}
+                    onClick={() => handleSelect(p)}
+                    className={`text-left px-3 py-2 rounded-lg text-sm transition-all truncate flex items-center justify-between ${
+                      activeId === p._id
+                        ? "bg-white/10 text-gold-400"
+                        : "text-zinc-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <span className="truncate flex-1">{p.name}</span>
+                    <span className="text-[10px] text-zinc-600 ml-2">📌</span>
+                  </button>
+                ))}
+              </div>
             )}
-          </button>
-        ))}
+
+            {/* Unpinned Section (Scrollable) */}
+            {playlists.filter(p => !p.is_pinned).length > 0 && (
+              <div className="flex flex-col gap-1 flex-1 min-h-0">
+                <h3 className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest px-2 mb-1">All Playlists</h3>
+                <div className="overflow-y-auto pr-1 flex flex-col gap-1 flex-1 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+                  {playlists.filter(p => !p.is_pinned).map(p => (
+                    <button
+                      key={p._id}
+                      onClick={() => handleSelect(p)}
+                      className={`text-left px-3 py-2 rounded-lg text-sm transition-all truncate ${
+                        activeId === p._id
+                          ? "bg-white/10 text-gold-400"
+                          : "text-zinc-400 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      {p.name}
+                      {p.tracks?.length > 0 && (
+                        <span className="ml-1 text-[10px] text-zinc-600">
+                          ({p.tracks.length})
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Logout button at the bottom */}
+      <div className="mt-auto pt-4 border-t border-white/10">
+        <button
+          onClick={onLogout}
+          className="w-full py-2 text-xs tracking-widest uppercase rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all"
+        >
+          Logout
+        </button>
       </div>
     </aside>
   );

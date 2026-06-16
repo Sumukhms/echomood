@@ -34,6 +34,9 @@ CATEGORY_MAP = {
     }
 }
 
+print("🗑️ Dropping old global library data...")
+db_manager.global_library.delete_many({})
+
 print("🎵 Starting Global Library Seed...")
 print(f"Seeding {len(LANGUAGES)} languages × {len(MOODS)} moods = {len(LANGUAGES) * len(MOODS)} categories")
 
@@ -58,6 +61,7 @@ for language in LANGUAGES:
                 track_name = track.get('track_name', 'Unknown')
                 artist_name = track.get('artist_name', 'Unknown')
                 preview_url = track.get('preview_url', '')
+                cover_url = track.get('cover_url', '')
                 
                 if track_name and artist_name and preview_url:
                     db_manager.seed_library(
@@ -66,7 +70,8 @@ for language in LANGUAGES:
                         preview_url=preview_url,
                         mood=mood,
                         language=language,
-                        category=category
+                        category=category,
+                        cover_url=cover_url
                     )
                     count += 1
             

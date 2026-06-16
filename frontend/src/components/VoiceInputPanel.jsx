@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import axios from "axios";
 
-export default function VoiceInputPanel({ userProfile, onAnalyzeComplete }) {
+export default function VoiceInputPanel({ userProfile, username, onAnalyzeComplete }) {
   const [isRecording, setIsRecording] = useState(false);
   const [statusText, setStatusText] = useState("Press to speak your mind");
 
@@ -44,6 +44,9 @@ export default function VoiceInputPanel({ userProfile, onAnalyzeComplete }) {
           if (userProfile && userProfile.languages) {
             formData.append("languages", userProfile.languages.join(","));
           }
+          if (username) {
+            formData.append("username", username);
+          }
 
           try {
             // Send it to our new Python endpoint!
@@ -56,11 +59,13 @@ export default function VoiceInputPanel({ userProfile, onAnalyzeComplete }) {
             );
 
             setStatusText("Vibe detected.");
-            if (onAnalyzeComplete)
+            if (onAnalyzeComplete) {
               onAnalyzeComplete(
                 response.data.detected_mood,
                 response.data.tracks,
+                response.data.explanation
               );
+            }
           } catch (error) {
             console.error("Upload failed", error);
             setStatusText("Error communicating with AI Brain.");

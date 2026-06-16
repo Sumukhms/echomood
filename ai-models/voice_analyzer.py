@@ -66,10 +66,10 @@ class VoiceEmotionAnalyzer:
 
         best_mood = max(scores, key=lambda m: scores[m])
         if scores[best_mood] > 0:
-            print(f"🎯 Detected: {best_mood.upper()} (score: {scores[best_mood]})")
+            print(f"[Voice] Detected: {best_mood.upper()} (score: {scores[best_mood]})")
             return best_mood
 
-        print("⚠️ No strong keywords detected. Defaulting to CALM.")
+        print("[Voice] No strong keywords detected. Defaulting to CALM.")
         return "calm"
 
     # ── public ────────────────────────────────────────────────────────────────
@@ -78,15 +78,15 @@ class VoiceEmotionAnalyzer:
         text = (text or "").lower().strip()
         if not text:
             return "calm"
-        print(f'📝 Text received: "{text}"')
+        print(f'[Voice] Text received: "{text}"')
         return self._analyze_transcription(text)
 
     def analyze_file(self, file_path: str) -> str:
-        print(f"\n📂 Processing audio: {file_path}")
+        print(f"\n[Voice] Processing audio: {file_path}")
         wav_path = file_path.replace(".webm", ".wav")
 
         try:
-            print("🔄 Converting to WAV...")
+            print("[Voice] Converting to WAV...")
             audio = AudioSegment.from_file(file_path)
             audio.export(wav_path, format="wav")
 
@@ -95,19 +95,19 @@ class VoiceEmotionAnalyzer:
                 audio_data = self.recognizer.record(source)
 
             try:
-                print("🧠 Transcribing...")
+                print("[Voice] Transcribing...")
                 transcription = self.recognizer.recognize_google(audio_data).lower()
-                print(f'📝 Heard: "{transcription}"')
+                print(f'[Voice] Heard: "{transcription}"')
                 return self._analyze_transcription(transcription)
             except sr.UnknownValueError:
-                print("⚠️ Could not understand audio. Defaulting to CALM.")
+                print("[Voice] Silence or unintelligible audio.")
                 return "calm"
-            except sr.RequestError as e:
-                print(f"❌ Speech Recognition API error: {e}")
+            except Exception as e:
+                print(f"[Voice] API Error: {e}")
                 return "calm"
 
         except Exception as e:
-            print(f"❌ Error processing audio file: {e}")
+            print(f"[Voice] Error processing audio file: {e}")
             return "calm"
 
         finally:

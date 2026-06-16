@@ -1,11 +1,14 @@
 import { useState } from 'react';
+import axios from 'axios';
 
 const LANGUAGES = ['Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Malayalam', 'Punjabi'];
 const VIBES = ['Bollywood', 'Indie', 'Lo-Fi', 'EDM', 'Acoustic', 'Classical', 'Hip-Hop'];
 
-export default function Onboarding({ onComplete }) {
+export default function Onboarding({ onComplete, username }) {
   const [selectedLanguages, setSelectedLanguages] = useState([]);
   const [selectedVibes, setSelectedVibes] = useState([]);
+
+  const [isSaving, setIsSaving] = useState(false);
 
   const toggleSelection = (item, list, setList) => {
     if (list.includes(item)) {
@@ -15,13 +18,30 @@ export default function Onboarding({ onComplete }) {
     }
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     // Ensure they picked at least one language
     if (selectedLanguages.length === 0) {
       alert("Please select at least one language!");
       return;
     }
-    onComplete({ languages: selectedLanguages, vibes: selectedVibes });
+    
+    setIsSaving(true);
+    try {
+      const preferences = { languages: selectedLanguages, vibes: selectedVibes };
+      if (username) {
+        await axios.post("http://127.0.0.1:5000/api/profile", {
+          username,
+          preferences
+        });
+      }
+      onComplete(preferences);
+    } catch (err) {
+      console.error("Failed to save onboarding preferences", err);
+      // still proceed so they aren't stuck
+      onComplete({ languages: selectedLanguages, vibes: selectedVibes });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -71,9 +91,10 @@ export default function Onboarding({ onComplete }) {
 
       <button 
         onClick={handleFinish}
-        className="w-full py-4 text-sm tracking-widest text-black transition-all duration-300 rounded-xl bg-gold-500 hover:bg-gold-400 hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] uppercase font-semibold"
+        disabled={isSaving}
+        className="w-full py-4 text-sm tracking-widest text-black transition-all duration-300 rounded-xl bg-gold-500 hover:bg-gold-400 hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] disabled:opacity-70 uppercase font-semibold"
       >
-        Enter Echomood
+        {isSaving ? "Initializing..." : "Enter Echomood"}
       </button>
     </div>
   );

@@ -9,8 +9,10 @@ export default function VaultGallery({ username, onPlayTrack }) {
 
   useEffect(() => {
     if (!username) {
-      setTracks([]);
-      setIsLoading(false);
+      setTimeout(() => {
+        setTracks([]);
+        setIsLoading(false);
+      }, 0);
       return;
     }
     const fetchTracks = async () => {
