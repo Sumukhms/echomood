@@ -276,7 +276,7 @@ export default function Library({ currentUser, onPlayTrack }) {
                     setEditedName(name);
                     setIsEditingName(true);
                   }}
-                  className="opacity-0 group-hover/title:opacity-100 text-zinc-400 hover:text-white p-2 mb-4 transition-opacity text-xl"
+                  className="opacity-100 md:opacity-0 group-hover/title:opacity-100 text-zinc-400 hover:text-white p-2 mb-4 transition-opacity text-xl flex-shrink-0"
                   title="Rename playlist"
                 >
                   ✏️
