@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import time
 import requests
+import concurrent.futures
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from database import MongoManager
@@ -504,12 +505,20 @@ def get_library_home():
     if not languages:
         languages = ["English", "Hindi"]
     
-    # Always inject massive variety of vibes to ensure a huge playlist selection
-    base_vibes = set(vibes)
-    extended_vibes = ["Devotional", "Romantic", "Sad", "Energetic", "Old Classics", "Lo-Fi", "Acoustic", "Bollywood", "EDM", "Indie", "Party", "Focus"]
-    for ev in extended_vibes:
-        base_vibes.add(ev)
-    vibes = list(base_vibes)
+    # If the user has selected vibes, prioritize them.
+    # To keep layouts rich, if they have selected fewer than 5 vibes, top it up with a few popular default vibes.
+    # If they have selected 5 or more vibes, ONLY use their chosen vibes for true personalization.
+    if vibes:
+        base_vibes = {v.strip() for v in vibes if v.strip()}
+        if len(base_vibes) < 5:
+            extended_vibes = ["Devotional", "Romantic", "Sad", "Energetic", "Old Classics", "Lo-Fi", "Acoustic", "Bollywood", "EDM", "Indie", "Party", "Focus"]
+            for ev in extended_vibes:
+                if len(base_vibes) >= 6:
+                    break
+                base_vibes.add(ev)
+        vibes = list(base_vibes)
+    else:
+        vibes = ["Bollywood", "Indie", "Lo-Fi", "EDM", "Acoustic", "Romantic", "Sad", "Energetic"]
         
     # Generate unique category queries crossing languages and vibes
     categories = {}
@@ -524,7 +533,14 @@ def get_library_home():
     top_artists = {
         "English": ["The Weeknd", "Taylor Swift", "Drake", "Billie Eilish"],
         "Hindi": ["Arijit Singh", "Shreya Ghoshal", "A.R. Rahman", "Pritam"],
-        "Spanish": ["Bad Bunny", "Rosalia", "J Balvin", "Shakira"]
+        "Spanish": ["Bad Bunny", "Rosalia", "J Balvin", "Shakira"],
+        "Kannada": ["Sonu Nigam", "Rajesh Krishnan", "Armaan Malik"],
+        "Tamil": ["Anirudh Ravichander", "Sid Sriram", "D. Imman"],
+        "Telugu": ["S. P. Balasubrahmanyam", "Sid Sriram", "Thaman S"],
+        "Malayalam": ["K. J. Yesudas", "Vineeth Sreenivasan"],
+        "Punjabi": ["Diljit Dosanjh", "AP Dhillon", "Sidhu Moose Wala"],
+        "Korean": ["BTS", "BLACKPINK", "IU"],
+        "Japanese": ["YOASOBI", "Kenshi Yonezu", "LiSA"]
     }
     
     for lang in languages[:2]: # Max 2 artist mixes
@@ -549,48 +565,104 @@ def get_library_home():
             name, query = get_category_query(lang, vibe)
             categories[name] = query
             
-    # Filter unique category names and randomly sample up to 16 to keep load times reasonable but variety high
+    unique_categories = {}
+    
+    # 3. Trending & Top 30 (Always prioritized)
+    for lang in languages:
+        lang_name = lang.capitalize()
+        unique_categories[f"Trending {lang_name}"] = f"trending {lang.lower()} hits"
+        unique_categories[f"{lang_name} Top 30"] = f"{lang.lower()} top 30 songs"
+    
+    if "English" in languages and "Global Viral 50" not in unique_categories:
+        unique_categories["Global Viral 50"] = "global viral 50 hits"
+        
+    # Filter unique category names and randomly sample to fill the rest up to 16
     unique_categories_list = list(categories.items())
     import random
     random.shuffle(unique_categories_list)
     
-    unique_categories = {}
     for name, query in unique_categories_list:
         if len(unique_categories) >= 16:
             break
-        unique_categories[name] = query
+        if name not in unique_categories:
+            unique_categories[name] = query
         
-    # If fewer than 10 categories, fill with default shelves
-    default_fallbacks = [
-        ("Global Top Hits", "top pop hits"),
-        ("Lo-Fi & Chill", "lofi beats relaxing"),
-        ("Workout Mix", "workout gym energetic"),
-        ("Acoustic Covers", "acoustic cover hits"),
-        ("Bollywood Top 50", "bollywood top romantic"),
-        ("Desi Party", "bollywood dance hits"),
-        ("Heartbreak Hits", "bollywood sad songs"),
-        ("Morning Devotional", "hindi bhajan devotional")
-    ]
+    # If fewer than 10 categories, fill with default shelves matching the user's selected languages
+    language_defaults = {
+        "English": [
+            ("Global Top Hits", "top pop hits"),
+            ("Lo-Fi & Chill", "lofi beats relaxing"),
+            ("Workout Mix", "workout gym energetic"),
+            ("Acoustic Covers", "acoustic cover hits"),
+            ("Rock Classics", "classic rock hits"),
+            ("Jazz Essentials", "jazz lounge instrumental")
+        ],
+        "Hindi": [
+            ("Bollywood Top 50", "bollywood top romantic"),
+            ("Desi Party", "bollywood dance hits"),
+            ("Heartbreak Hits", "bollywood sad songs"),
+            ("Morning Devotional", "hindi bhajan devotional"),
+            ("Hindi Lo-Fi", "bollywood lofi chill beats"),
+            ("Hindi Indie", "hindi indie pop folk")
+        ],
+        "Spanish": [
+            ("Latino Hits", "latino pop reggaeton hits"),
+            ("Vibras Urbanas", "latin trap urbano hits"),
+            ("Acústico Latino", "latin acoustic pop")
+        ],
+        "Kannada": [
+            ("Kannada Hits", "kannada top songs hits"),
+            ("Sandalwood Romance", "kannada romantic love songs")
+        ],
+        "Tamil": [
+            ("Tamil Top Hits", "tamil top songs hits"),
+            ("Kollywood Romance", "tamil romantic love songs")
+        ],
+        "Telugu": [
+            ("Telugu Top Hits", "telugu top songs hits"),
+            ("Tollywood Romance", "telugu romantic love love hits")
+        ],
+        "Malayalam": [
+            ("Malayalam Hits", "malayalam top songs hits"),
+            ("Mollywood Romance", "malayalam romantic love songs")
+        ],
+        "Punjabi": [
+            ("Punjabi Hits", "punjabi top dance bhangra hits"),
+            ("Punjabi Romantic", "punjabi romantic sad love songs")
+        ]
+    }
+
+    default_fallbacks = []
+    for lang in languages:
+        if lang in language_defaults:
+            default_fallbacks.extend(language_defaults[lang])
+
+    # Fallback to standard pop hits if no language fallbacks match
+    if not default_fallbacks:
+        default_fallbacks = [
+            ("Global Top Hits", "top pop hits"),
+            ("Lo-Fi & Chill", "lofi beats relaxing"),
+            ("Workout Mix", "workout gym energetic")
+        ]
     
     for name, query in default_fallbacks:
-        if len(unique_categories) >= 12:
+        if len(unique_categories) >= 10:
             break
         if name not in unique_categories:
             unique_categories[name] = query
             
-    # Fetch track data from APIs
+    # Fetch track data from APIs in parallel
     library = {}
-    for title, query in unique_categories.items():
-        country_code = "IN" if ("hindi" in title.lower() or "bollywood" in query.lower() or "shreya" in title.lower() or "arijit" in title.lower()) else "US"
+    
+    def fetch_category(title, query):
+        indian_langs = ['hindi', 'kannada', 'tamil', 'telugu', 'malayalam', 'punjabi', 'bengali', 'marathi', 'gujarati', 'urdu', 'bollywood', 'desi']
+        country_code = "IN" if any(lang in title.lower() or lang in query.lower() for lang in indian_langs) else "US"
         
         # Merge iTunes + JioSaavn tracks
         itunes_tracks = fetch_itunes_category(query, limit=30, country=country_code)
         
         # If it's Indian music, fetch from JioSaavn as well to enrich the library
-        if country_code == "IN":
-            saavn_tracks = fetch_jiosaavn_category(query, limit=20)
-        else:
-            saavn_tracks = []
+        saavn_tracks = fetch_jiosaavn_category(query, limit=20) if country_code == "IN" else []
             
         merged_tracks = itunes_tracks + saavn_tracks
         random.shuffle(merged_tracks)
@@ -610,7 +682,19 @@ def get_library_home():
                     image_counts[t_img] = img_count + 1
                 deduped.append(t)
                 
-        library[title] = deduped
+        return title, deduped
+
+    # Run fetches concurrently to speed up the dashboard loading
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_title = {executor.submit(fetch_category, title, query): title for title, query in unique_categories.items()}
+        for future in concurrent.futures.as_completed(future_to_title):
+            title = future_to_title[future]
+            try:
+                result_title, deduped_tracks = future.result()
+                library[result_title] = deduped_tracks
+            except Exception as exc:
+                print(f"Category {title} generated an exception: {exc}")
+                library[title] = []
         
     # Cache result
     HOME_CACHE[cache_key] = {
@@ -626,7 +710,8 @@ def search_library():
     query = (request.args.get("q") or "").strip()
     if not query:
         return jsonify({"success": True, "results": []})
-    country_code = "IN" if ("hindi" in query.lower() or "bollywood" in query.lower()) else "US"
+    indian_langs = ['hindi', 'kannada', 'tamil', 'telugu', 'malayalam', 'punjabi', 'bengali', 'marathi', 'gujarati', 'urdu', 'bollywood', 'desi']
+    country_code = "IN" if any(lang in query.lower() for lang in indian_langs) else "US"
     results = fetch_itunes_category(query, limit=50, country=country_code)
     return jsonify({"success": True, "results": results, "query": query})
 
@@ -871,6 +956,28 @@ def reorder_playlist():
     return jsonify({"success": True, "message": "Playlist reordered"})
 
 
+@app.route("/api/playlists/remove_track", methods=["POST"])
+def remove_playlist_track():
+    data = request.get_json(silent=True) or {}
+    playlist_id = data.get("playlist_id")
+    file_url = data.get("file_url")
+    if not playlist_id or not file_url:
+        return jsonify({"success": False, "message": "playlist_id and file_url are required"}), 400
+    db_manager.remove_track_from_playlist(playlist_id, file_url)
+    return jsonify({"success": True, "message": "Track removed from playlist"})
+
+
+@app.route("/api/playlists/update_name", methods=["POST"])
+def update_playlist_name():
+    data = request.get_json(silent=True) or {}
+    playlist_id = data.get("playlist_id")
+    name = (data.get("name") or "").strip()
+    if not playlist_id or not name:
+        return jsonify({"success": False, "message": "playlist_id and name are required"}), 400
+    db_manager.update_playlist_name(playlist_id, name)
+    return jsonify({"success": True, "message": "Playlist name updated"})
+
+
 @app.route("/api/radio/next", methods=["POST"])
 def next_radio_tracks():
     payload = request.get_json(silent=True) or {}
@@ -884,11 +991,7 @@ def next_radio_tracks():
         user_languages = db_manager.get_user_profile(username).get("languages", ["English", "Hindi"])
         skipped_tracks = db_manager.get_user_skips(username)
         
-    # Language Continuity Override
-    if seed_source == "JioSaavn":
-        user_languages = ["Hindi"]
-    elif seed_source == "iTunes":
-        user_languages = ["English"]
+    # Ensure languages are respected regardless of the seed track's source
         
     songs = recommender.get_recommendations(seed_mood, languages=user_languages, limit=5, skipped_tracks=skipped_tracks)
     return jsonify({"success": True, "tracks": songs})

@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-const LANGUAGES = ['Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Malayalam', 'Punjabi'];
-const VIBES = ['Bollywood', 'Indie', 'Lo-Fi', 'EDM', 'Acoustic', 'Classical', 'Hip-Hop'];
+const LANGUAGES = [
+  'Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Malayalam', 'Punjabi', 
+  'Spanish', 'French', 'Japanese', 'Korean', 'German', 'Italian'
+];
+const VIBES = [
+  'Bollywood', 'Indie', 'Lo-Fi', 'EDM', 'Acoustic', 'Classical', 'Hip-Hop',
+  'Romantic', 'Sad', 'Energetic', 'Old Classics', 'Devotional', 'Party', 'Focus',
+  'Pop', 'Rock', 'Jazz', 'Metal', 'Folk', 'Ambient'
+];
 
 export default function Onboarding({ onComplete, username }) {
   const [selectedLanguages, setSelectedLanguages] = useState([]);

@@ -82,6 +82,45 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
     return { dominantMood, breakdown, advice };
   }, [vibeHistory]);
 
+  const [isGeneratingRadio, setIsGeneratingRadio] = useState(false);
+
+  const handleStartSmartRadio = async () => {
+    setIsGeneratingRadio(true);
+    try {
+      const dominantMood = vibeStats?.dominantMood || (userProfile?.preferences?.vibes && userProfile.preferences.vibes[0]) || "calm";
+      const payload = {
+        username: currentUser?.username,
+        seed_mood: dominantMood
+      };
+      const res = await axios.post("http://127.0.0.1:5000/api/radio/next", payload);
+      if (res.data?.success && res.data.tracks?.length > 0) {
+        onPlayTrack(res.data.tracks[0], res.data.tracks, { isEndless: true, seedMood: dominantMood });
+      }
+    } catch (err) {
+      console.error("Failed to start smart radio", err);
+    } finally {
+      setIsGeneratingRadio(false);
+    }
+  };
+
+  const handleStartQuickVibe = async (vibe) => {
+    setIsGeneratingRadio(true);
+    try {
+      const payload = {
+        username: currentUser?.username,
+        seed_mood: vibe
+      };
+      const res = await axios.post("http://127.0.0.1:5000/api/radio/next", payload);
+      if (res.data?.success && res.data.tracks?.length > 0) {
+        onPlayTrack(res.data.tracks[0], res.data.tracks, { isEndless: true, seedMood: vibe });
+      }
+    } catch (err) {
+      console.error(`Failed to start ${vibe} radio`, err);
+    } finally {
+      setIsGeneratingRadio(false);
+    }
+  };
+
   useEffect(() => {
     const fetchLibrary = async () => {
       try {
@@ -159,39 +198,37 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
     <div
       key={`${track.track_name}-${track.artist_name}-${idx}`}
       onClick={() => handlePlay(track, trackList)}
-      className="relative flex-shrink-0 w-48 h-64 p-4 border rounded-2xl bg-white/5 backdrop-blur-md border-white/10 hover:bg-white/10 hover:shadow-xl transition-all group cursor-pointer flex flex-col"
+      className="flex flex-col group cursor-pointer w-full hover:scale-[1.02] transition-transform min-w-0"
     >
-      {track.cover_url ? (
-        <div className="w-full h-32 rounded-xl overflow-hidden bg-black mb-3 relative pointer-events-none shadow-md group-hover:shadow-lg transition-all">
+      <div className="aspect-square w-full rounded-2xl overflow-hidden relative border border-white/10 group-hover:border-gold-500/50 transition-all bg-zinc-900 flex-shrink-0 shadow-md">
+        {track.cover_url ? (
           <img
             src={track.cover_url}
             alt={track.track_name}
-            className="absolute inset-0 w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+            className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500 pointer-events-none"
           />
+        ) : (
+          <div 
+            className="w-full h-full opacity-80 pointer-events-none"
+            style={{ background: getVibeGradient(track.mood || (track.mood_tags ? track.mood_tags[0] : null)) }}
+          />
+        )}
+        <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full bg-gold-500 text-black flex items-center justify-center shadow-lg transition-all transform scale-90 sm:scale-100 opacity-100 sm:opacity-0 group-hover:opacity-100 hover:scale-105">
+          <span className="text-sm sm:text-lg ml-0.5">▶</span>
         </div>
-      ) : (
-        <div 
-          className="w-full h-32 rounded-xl mb-3 pointer-events-none opacity-80 shadow-md"
-          style={{ background: getVibeGradient(track.mood || (track.mood_tags ? track.mood_tags[0] : null)) }}
-        />
-      )}
-      <div className="flex-1 flex flex-col justify-between">
-        <div>
-          <h4 className="font-serif text-sm text-white truncate group-hover:text-gold-400 transition-colors">
-            {track.track_name}
-          </h4>
-          <p className="text-xs font-light text-zinc-400 truncate mt-1">
-            {track.artist_name}
-          </p>
-        </div>
+      </div>
+      <div className="mt-2.5 px-1 min-w-0">
+        <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-gold-400 transition-colors">
+          {track.track_name}
+        </h4>
+        <p className="text-[10px] sm:text-xs text-zinc-400 truncate mt-0.5">
+          {track.artist_name}
+        </p>
         {track.mood && (
-          <span className="text-[10px] tracking-widest uppercase px-2 py-1 rounded-full border border-gold-500/40 text-gold-300 bg-gold-500/10 w-fit mt-2">
+          <span className="inline-block text-[8px] sm:text-[9px] tracking-widest uppercase px-1.5 py-0.5 rounded-full border border-gold-500/40 text-gold-300 bg-gold-500/10 mt-1.5">
             {track.mood}
           </span>
         )}
-      </div>
-      <div className="absolute bottom-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-gold-500 text-black opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all shadow-lg hover:scale-105">
-        <span className="text-xl ml-1">▶</span>
       </div>
     </div>
   );
@@ -204,25 +241,29 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
       <div
         key={categoryName}
         onClick={() => setActivePlaylist({ name: categoryName, tracks, description: "Curated especially for you." })}
-        className="relative group cursor-pointer overflow-hidden rounded-2xl bg-zinc-900 border border-white/10 hover:border-gold-500/50 transition-all hover:shadow-[0_0_30px_rgba(234,179,8,0.15)] h-64 flex flex-col"
+        className="flex flex-col group cursor-pointer w-full hover:scale-[1.02] transition-transform min-w-0"
       >
-        <div className="flex-1 w-full grid grid-cols-2 grid-rows-2 gap-0.5 bg-black opacity-60 group-hover:opacity-40 transition-opacity">
-          {covers.map((c, i) => (
-            <img key={i} src={c} alt="mix cover" className="w-full h-full object-cover" />
-          ))}
-          {covers.length < 4 && Array.from({ length: 4 - covers.length }).map((_, i) => (
-            <div key={`empty-${i}`} className="w-full h-full bg-zinc-800" />
-          ))}
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/80 to-transparent pointer-events-none" />
-        <div className="absolute bottom-0 left-0 right-0 p-5 flex items-end justify-between">
-          <div>
-            <span className="text-[10px] tracking-widest uppercase text-gold-400 font-bold mb-1 block">Made For You</span>
-            <h3 className="text-2xl font-serif text-white group-hover:text-gold-300 transition-colors">{categoryName}</h3>
-            <p className="text-xs text-zinc-400 mt-1 line-clamp-1">
-              {tracks.slice(0, 3).map(t => t.artist_name).join(", ")} and more
-            </p>
+        <div className="aspect-square w-full rounded-2xl overflow-hidden relative border border-white/10 group-hover:border-gold-500/50 transition-all bg-zinc-900 flex-shrink-0 shadow-md">
+          <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-0.5 bg-black opacity-80 group-hover:opacity-60 transition-opacity">
+            {covers.map((c, i) => (
+              <img key={i} src={c} alt="mix cover" className="w-full h-full object-cover pointer-events-none" />
+            ))}
+            {covers.length < 4 && Array.from({ length: 4 - covers.length }).map((_, i) => (
+              <div key={`empty-${i}`} className="w-full h-full bg-zinc-800" />
+            ))}
           </div>
+          <div className="absolute bottom-2 right-2 sm:bottom-3 sm:right-3 w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 rounded-full bg-gold-500 text-black flex items-center justify-center shadow-lg transition-all transform scale-90 sm:scale-100 opacity-100 sm:opacity-0 group-hover:opacity-100 hover:scale-105">
+            <span className="text-sm sm:text-lg ml-0.5">▶</span>
+          </div>
+        </div>
+        <div className="mt-2.5 px-1 min-w-0">
+          <span className="text-[8px] sm:text-[9px] tracking-widest uppercase text-gold-400 font-bold mb-0.5 sm:mb-1 block">Made For You</span>
+          <h4 className="text-xs sm:text-sm font-semibold text-white truncate group-hover:text-gold-400 transition-colors">
+            {categoryName}
+          </h4>
+          <p className="text-[10px] sm:text-xs text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
+            {tracks.slice(0, 3).map(t => t.artist_name).join(", ")} and more
+          </p>
         </div>
       </div>
     );
@@ -274,7 +315,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         </button>
 
         <div className="flex flex-col md:flex-row items-end gap-8 mb-10 pb-10 border-b border-white/10">
-          <div className="w-52 h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
+          <div className="w-28 h-28 sm:w-40 sm:h-40 md:w-52 md:h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
             {coverImage ? (
               <img src={coverImage} alt="playlist cover" className="w-full h-full object-cover" />
             ) : (
@@ -283,7 +324,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           </div>
           <div>
             <p className="text-xs uppercase tracking-widest text-white block mb-2 font-bold">{isAi ? 'AI Generated' : 'Playlist'}</p>
-            <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter mb-4">{name}</h1>
+            <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-white tracking-tighter mb-4">{name}</h1>
             <p className="text-zinc-400 text-sm">{description}</p>
             <p className="text-zinc-500 text-xs mt-2 font-bold tracking-widest uppercase">
               Echomood • {tracks.length} songs
@@ -291,7 +332,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           </div>
         </div>
 
-        <div className="mb-10 flex gap-4 items-center">
+        <div className="mb-10 flex gap-4 items-center flex-wrap">
           <button 
             onClick={() => handlePlay(tracks[0], tracks)}
             className="w-16 h-16 flex items-center justify-center rounded-full bg-gold-500 text-black hover:scale-105 transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_30px_rgba(234,179,8,0.5)]"
@@ -299,13 +340,22 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
             <span className="text-2xl ml-1">▶</span>
           </button>
           {isAi && (
-            <button 
-              onClick={handleSaveAiPlaylist}
-              disabled={isSaving}
-              className="px-6 py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all font-medium tracking-wide border border-white/10 disabled:opacity-50"
-            >
-              {isSaving ? "Saving..." : "Save to Library"}
-            </button>
+            <>
+              <button 
+                onClick={() => onPlayTrack(tracks[0], tracks, { isEndless: true, seedMood: activePlaylist.mood })}
+                disabled={isGeneratingRadio}
+                className="px-6 py-3 rounded-full bg-gold-500 text-black hover:bg-gold-400 hover:scale-105 transition-all font-medium tracking-wide shadow-[0_0_20px_rgba(234,179,8,0.2)] flex items-center gap-2"
+              >
+                <span>🎧</span> Start Endless DJ Session
+              </button>
+              <button 
+                onClick={handleSaveAiPlaylist}
+                disabled={isSaving}
+                className="px-6 py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all font-medium tracking-wide border border-white/10 disabled:opacity-50"
+              >
+                {isSaving ? "Saving..." : "Save to Library"}
+              </button>
+            </>
           )}
         </div>
 
@@ -327,8 +377,8 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
               <img src={track.cover_url || '/placeholder.jpg'} alt="cover" className="w-12 h-12 object-cover rounded mr-4 bg-zinc-800" />
               
               <div className="flex-1">
-                <p className="text-white font-medium group-hover:text-gold-400 transition-colors line-clamp-1">{track.track_name}</p>
-                <p className="text-zinc-400 text-sm line-clamp-1">{track.artist_name}</p>
+                <p className="text-sm sm:text-base text-white font-medium group-hover:text-gold-400 transition-colors line-clamp-1">{track.track_name}</p>
+                <p className="text-xs sm:text-sm text-zinc-400 line-clamp-1">{track.artist_name}</p>
               </div>
               
               {track.mood && (
@@ -359,9 +409,66 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         />
       </div>
 
+      {/* Instant Vibes / Smart Radio Section */}
+      <section className="mb-14">
+        <h2 className="text-lg sm:text-xl md:text-2xl font-serif text-white mb-6 px-1">Instant Vibes</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          {/* Smart Radio Card */}
+          <div 
+            onClick={handleStartSmartRadio}
+            className="relative overflow-hidden rounded-2xl border border-gold-500/20 bg-gradient-to-br from-gold-500/10 via-zinc-900 to-zinc-950 p-4 hover:border-gold-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(234,179,8,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="text-2xl shrink-0 p-2 bg-gold-500/10 rounded-xl border border-gold-500/20">📻</div>
+              <div className="min-w-0">
+                <p className="text-[10px] tracking-wider uppercase text-gold-400 font-bold mb-0.5">Endless Radio</p>
+                <h3 className="text-xs sm:text-sm font-serif text-white group-hover:text-gold-300 transition-colors truncate font-bold">Smart Radio</h3>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-gold-500 text-black flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform">
+              <span className="text-base ml-0.5">▶</span>
+            </div>
+          </div>
+
+          {/* Zen Mode Card */}
+          <div 
+            onClick={() => handleStartQuickVibe("calm")}
+            className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-zinc-900 to-zinc-950 p-4 hover:border-emerald-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(16,185,129,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="text-2xl shrink-0 p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">🍃</div>
+              <div className="min-w-0">
+                <p className="text-[10px] tracking-wider uppercase text-emerald-400 font-bold mb-0.5">Zen Chill</p>
+                <h3 className="text-xs sm:text-sm font-serif text-white group-hover:text-emerald-300 transition-colors truncate font-bold">Relaxation</h3>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform">
+              <span className="text-base ml-0.5">▶</span>
+            </div>
+          </div>
+
+          {/* Energy Boost Card */}
+          <div 
+            onClick={() => handleStartQuickVibe("energetic")}
+            className="relative overflow-hidden rounded-2xl border border-pink-500/20 bg-gradient-to-br from-pink-500/10 via-zinc-900 to-zinc-950 p-4 hover:border-pink-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(236,72,153,0.15)] flex items-center justify-between gap-3 min-h-[72px] col-span-2 md:col-span-1"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="text-2xl shrink-0 p-2 bg-pink-500/10 rounded-xl border border-pink-500/20">⚡</div>
+              <div className="min-w-0">
+                <p className="text-[10px] tracking-wider uppercase text-pink-400 font-bold mb-0.5">High Tempo</p>
+                <h3 className="text-xs sm:text-sm font-serif text-white group-hover:text-pink-300 transition-colors truncate font-bold">Energy Boost</h3>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-pink-500 text-black flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform">
+              <span className="text-base ml-0.5">▶</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Vibe Insights Dashboard Widget */}
       {vibeHistory.length > 0 && vibeStats && (
-        <div className="mb-14 border rounded-3xl border-white/10 bg-white/5 backdrop-blur-xl p-6 md:p-8 animate-fade-in">
+        <div className="mb-14 border rounded-3xl border-white/10 bg-white/5 backdrop-blur-xl p-3 sm:p-5 md:p-8 animate-fade-in">
           <div className="flex flex-col lg:flex-row gap-8 items-start">
             
             {/* Left side: Vibe breakdown */}
@@ -369,7 +476,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
               <div className="flex items-center gap-3 mb-6">
                 <span className="text-2xl">📊</span>
                 <div>
-                  <h3 className="font-serif text-2xl text-white">Your Vibe Insights</h3>
+                  <h3 className="font-serif text-lg sm:text-xl md:text-2xl text-white">Your Vibe Insights</h3>
                   <p className="text-xs text-zinc-500 tracking-wider uppercase mt-0.5">Vibe analytics based on your AI DJ check-ins</p>
                 </div>
               </div>
@@ -484,7 +591,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
                   View as Playlist
                 </span>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+              <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4 md:gap-6">
                 {searchResults.map((track, idx) => renderTrackCard(track, searchResults, idx))}
               </div>
             </>
@@ -499,8 +606,8 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           {/* Made For You Grid */}
           {featuredMixes.length > 0 && (
             <section>
-              <h2 className="text-3xl font-serif text-white mb-6 px-1">Made For You</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-serif text-white mb-6 px-1">Made For You</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
                 {featuredMixes.map(([name, tracks]) => renderMixCard(name, tracks))}
               </div>
             </section>
@@ -509,8 +616,8 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           {/* Regular Categories as Playlists */}
           {regularShelves.length > 0 && (
             <section className="mb-14">
-              <h2 className="text-3xl font-serif text-white mb-6 px-1">Browse Categories</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-serif text-white mb-6 px-1">Browse Categories</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
                 {regularShelves.map(([categoryName, tracks]) => renderMixCard(categoryName, tracks))}
               </div>
             </section>
@@ -519,23 +626,23 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           {/* Standalone Quick Picks (Moved Below Playlists) */}
           {quickPicks.length > 0 && (
             <section>
-              <h2 className="text-3xl font-serif text-white mb-6 px-1">Quick Picks (Singles)</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-serif text-white mb-6 px-1">Quick Picks (Singles)</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 md:gap-4">
                 {quickPicks.map((track, idx) => (
                   <div 
                     key={idx} 
                     onClick={() => handlePlay(track, quickPicks)} 
-                    className="group flex items-center p-3 bg-white/5 hover:bg-white/10 rounded-lg cursor-pointer transition-colors shadow-sm hover:shadow-[0_0_20px_rgba(234,179,8,0.15)]"
+                    className="group flex items-center p-1.5 sm:p-2 md:p-3 bg-white/5 hover:bg-white/10 rounded-lg cursor-pointer transition-colors shadow-sm hover:shadow-[0_0_20px_rgba(234,179,8,0.15)] min-w-0"
                   >
-                    <div className="relative w-14 h-14 shrink-0">
+                    <div className="relative w-10 h-10 sm:w-14 sm:h-14 shrink-0">
                       <img src={track.cover_url || '/placeholder.jpg'} alt="cover" className="w-full h-full object-cover rounded shadow-md bg-zinc-800" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity">
-                        <span className="text-white text-lg ml-1">▶</span>
+                        <span className="text-white text-base sm:text-lg ml-1">▶</span>
                       </div>
                     </div>
-                    <div className="ml-4 flex-1 overflow-hidden">
-                      <p className="text-white font-medium text-sm truncate group-hover:text-gold-400 transition-colors">{track.track_name}</p>
-                      <p className="text-zinc-400 text-xs truncate mt-1">{track.artist_name}</p>
+                    <div className="ml-3 sm:ml-4 flex-1 overflow-hidden min-w-0">
+                      <p className="text-white font-medium text-xs sm:text-sm truncate group-hover:text-gold-400 transition-colors">{track.track_name}</p>
+                      <p className="text-zinc-400 text-[10px] sm:text-xs truncate mt-0.5 sm:mt-1">{track.artist_name}</p>
                     </div>
                   </div>
                 ))}

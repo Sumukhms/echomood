@@ -149,8 +149,8 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto p-6 md:p-8 border bg-white/5 backdrop-blur-md border-white/10 rounded-3xl shadow-2xl mt-8 transition-all">
-      <h3 className="mb-2 font-serif text-3xl tracking-wide text-white">AI DJ Command Center</h3>
+    <div className="w-full max-w-3xl mx-auto p-3 sm:p-5 md:p-8 border bg-white/5 backdrop-blur-md border-white/10 rounded-3xl shadow-2xl mt-4 sm:mt-6 md:mt-8 transition-all">
+      <h3 className="mb-2 font-serif text-xl sm:text-2xl md:text-3xl tracking-wide text-white">AI DJ Command Center</h3>
       <p className="text-xs tracking-[0.15em] uppercase text-gold-400 mb-6">Describe, speak, or show your vibe</p>
 
       {/* Main Input Area */}
@@ -158,9 +158,9 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
         <textarea
           value={text}
           onChange={(event) => setText(event.target.value)}
-          rows={3}
+          rows={2}
           placeholder="Example: I need calm focus for deep work, maybe some nostalgic indie."
-          className="flex-1 w-full bg-transparent p-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none resize-none"
+          className="flex-1 w-full bg-transparent p-2 sm:p-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none resize-none"
         />
         
         {/* Actions inside the input box */}
@@ -168,7 +168,7 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
           <button
             onClick={handleSubmitText}
             disabled={isSubmitting || !text.trim()}
-            className="w-12 h-12 flex items-center justify-center rounded-xl bg-gold-500 text-black hover:bg-gold-400 disabled:opacity-50 transition-all shadow-md text-xl"
+            className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl bg-gold-500 text-black hover:bg-gold-400 disabled:opacity-50 transition-all shadow-md text-base sm:text-xl"
             title="Send Text"
           >
             ➤
@@ -176,7 +176,7 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
           <button
             onClick={handleRecordClick}
             disabled={isSubmitting || isCameraActive}
-            className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all text-xl ${isRecording ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' : 'bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50'}`}
+            className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl border transition-all text-base sm:text-xl ${isRecording ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' : 'bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50'}`}
             title="Voice Input"
           >
             🎤
@@ -184,7 +184,7 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
           <button
             onClick={() => setIsCameraActive(!isCameraActive)}
             disabled={isSubmitting || isRecording}
-            className={`w-12 h-12 flex items-center justify-center rounded-xl border transition-all text-xl ${isCameraActive ? 'bg-gold-500/20 border-gold-500 text-gold-500' : 'bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50'}`}
+            className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-xl border transition-all text-base sm:text-xl ${isCameraActive ? 'bg-gold-500/20 border-gold-500 text-gold-500' : 'bg-white/10 border-white/20 text-white hover:bg-white/20 disabled:opacity-50'}`}
             title="Camera Input"
           >
             📷
@@ -216,7 +216,7 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
       )}
 
       {/* Status Footer */}
-      <div className="flex items-center justify-between mt-6">
+      <div className="flex items-center justify-between mt-3 sm:mt-6">
         <p className={`text-xs tracking-widest uppercase font-medium ${isRecording ? 'text-red-400 animate-pulse' : 'text-zinc-400'}`}>{statusText}</p>
         {isSubmitting && <div className="w-5 h-5 border-2 border-gold-500 border-t-transparent rounded-full animate-spin" />}
       </div>
