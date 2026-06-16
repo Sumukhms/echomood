@@ -156,9 +156,28 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
     onPlayTrack?.(track, trackList);
   };
 
+  const generatePlaylistName = (mood) => {
+    const m = mood?.toLowerCase() || "";
+    const prefixes = ["Midnight", "Neon", "Velvet", "Golden", "Astral", "Electric", "Silent", "Echoing", "Vibrant", "Deep", "Crystal"];
+    const nouns = {
+      happy: ["Sunshine", "Vibes", "Groove", "Glow", "Breeze"],
+      sad: ["Tears", "Shadows", "Rain", "Echoes", "Melancholy"],
+      energetic: ["Pulse", "Surge", "Fire", "Storm", "Rush"],
+      calm: ["Whispers", "Breeze", "Waves", "Zen", "Horizons"],
+      focused: ["Flow", "Mind", "Clarity", "Zone", "Currents"],
+      romantic: ["Heartbeats", "Blush", "Embrace", "Desire", "Sparks"]
+    };
+    const suffix = nouns[m] || ["Mix", "Session", "Journey", "Soundscape", "Aura"];
+    
+    const randomPrefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+    const randomSuffix = suffix[Math.floor(Math.random() * suffix.length)];
+    
+    return `✨ ${randomPrefix} ${randomSuffix}`;
+  };
+
   const handleMoodDetected = (mood, tracks, explanation) => {
     setActivePlaylist({
-      name: `✨ AI Gen: ${mood}`,
+      name: generatePlaylistName(mood),
       description: explanation || "A custom mix created by your AI DJ.",
       tracks: tracks,
       isAi: true,
