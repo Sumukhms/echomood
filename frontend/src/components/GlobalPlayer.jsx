@@ -549,7 +549,7 @@ export default function GlobalPlayer({
     };
   }, [isPlaying, is8DEnabled]);
 
-  const togglePlayback = () => {
+  const togglePlayback = useCallback(() => {
     if (!resolvedUrl) return;
     
     if (isExternal && ytPlayerRef.current) {
@@ -557,8 +557,97 @@ export default function GlobalPlayer({
       else ytPlayerRef.current.playVideo();
     }
     
-    setIsPlaying(!isPlaying);
-  };
+    setIsPlaying(prev => !prev);
+  }, [resolvedUrl, isExternal, isPlaying]);
+
+  // Global Keyboard Controls
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.tagName === "SELECT" ||
+          activeEl.isContentEditable)
+      ) {
+        return;
+      }
+
+      switch (e.code) {
+        case "Space":
+          e.preventDefault();
+          togglePlayback();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          setCurrentTime((prev) => {
+            const next = Math.max(0, prev - 10);
+            if (isExternal && ytPlayerRef.current?.seekTo) {
+              ytPlayerRef.current.seekTo(next, true);
+            } else if (audioRef.current) {
+              audioRef.current.currentTime = next;
+            }
+            return next;
+          });
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          setCurrentTime((prev) => {
+            const next = Math.min(duration || 0, prev + 10);
+            if (isExternal && ytPlayerRef.current?.seekTo) {
+              ytPlayerRef.current.seekTo(next, true);
+            } else if (audioRef.current) {
+              audioRef.current.currentTime = next;
+            }
+            return next;
+          });
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          setVolume((prev) => {
+            const next = Math.min(1.0, prev + 0.1);
+            setIsMuted(false);
+            if (audioRef.current) audioRef.current.volume = next;
+            if (isExternal && ytPlayerRef.current?.setVolume) ytPlayerRef.current.setVolume(next * 100);
+            return next;
+          });
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          setVolume((prev) => {
+            const next = Math.max(0.0, prev - 0.1);
+            if (audioRef.current) audioRef.current.volume = next;
+            if (isExternal && ytPlayerRef.current?.setVolume) ytPlayerRef.current.setVolume(next * 100);
+            return next;
+          });
+          break;
+        case "KeyM":
+          setIsMuted((prev) => {
+            const next = !prev;
+            if (audioRef.current) audioRef.current.volume = next ? 0 : volume;
+            if (isExternal && ytPlayerRef.current?.setVolume) ytPlayerRef.current.setVolume(next ? 0 : volume * 100);
+            return next;
+          });
+          break;
+        case "KeyN":
+          e.preventDefault();
+          playNext();
+          break;
+        case "KeyP":
+          e.preventDefault();
+          playPrevious();
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [togglePlayback, duration, isExternal, playNext, playPrevious, volume]);
 
   const handleSeek = (e) => {
     const next = Number(e.target.value);

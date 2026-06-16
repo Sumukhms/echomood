@@ -9,6 +9,8 @@ export default function Library({ currentUser, onPlayTrack }) {
   const [isCreating, setIsCreating] = useState(false);
   const [activePlaylist, setActivePlaylist] = useState(null);
   const [isGeneratingRadio, setIsGeneratingRadio] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
 
   // Drag and drop refs
   const dragItem = useRef(null);
@@ -77,6 +79,29 @@ export default function Library({ currentUser, onPlayTrack }) {
       }
     } catch (error) {
       console.error("Failed to toggle pin", error);
+    }
+  };
+
+  const handleRenamePlaylist = async () => {
+    if (!editedName.trim() || !activePlaylist) {
+      setIsEditingName(false);
+      return;
+    }
+    if (editedName.trim() === activePlaylist.name) {
+      setIsEditingName(false);
+      return;
+    }
+    try {
+      await axios.post("http://127.0.0.1:5000/api/playlists/update_name", {
+        playlist_id: activePlaylist._id,
+        name: editedName.trim()
+      });
+      setActivePlaylist(prev => prev ? { ...prev, name: editedName.trim() } : null);
+      setIsEditingName(false);
+      fetchLibraryData();
+      window.dispatchEvent(new Event('libraryUpdate'));
+    } catch (error) {
+      console.error("Failed to rename playlist", error);
     }
   };
 
@@ -198,7 +223,42 @@ export default function Library({ currentUser, onPlayTrack }) {
           </div>
           <div>
             <p className="text-xs uppercase tracking-widest text-white block mb-2 font-bold">Custom Playlist</p>
-            <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter mb-4">{name}</h1>
+            {isEditingName ? (
+              <input
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onBlur={handleRenamePlaylist}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleRenamePlaylist();
+                  if (e.key === 'Escape') setIsEditingName(false);
+                }}
+                autoFocus
+                className="bg-white/10 text-white text-3xl md:text-5xl font-black rounded px-3 py-1 outline-none border border-gold-500 max-w-full"
+              />
+            ) : (
+              <div className="flex items-center gap-3 group/title">
+                <h1 
+                  className="text-5xl md:text-7xl font-black text-white tracking-tighter mb-4 cursor-pointer hover:text-gold-400 transition-colors"
+                  onDoubleClick={() => {
+                    setEditedName(name);
+                    setIsEditingName(true);
+                  }}
+                >
+                  {name}
+                </h1>
+                <button
+                  onClick={() => {
+                    setEditedName(name);
+                    setIsEditingName(true);
+                  }}
+                  className="opacity-0 group-hover/title:opacity-100 text-zinc-400 hover:text-white p-2 mb-4 transition-opacity text-xl"
+                  title="Rename playlist"
+                >
+                  ✏️
+                </button>
+              </div>
+            )}
             <p className="text-zinc-500 text-xs mt-2 font-bold tracking-widest uppercase">
               {tracks.length} songs
             </p>
@@ -248,18 +308,45 @@ export default function Library({ currentUser, onPlayTrack }) {
                 
                 <img src={track.cover_url || '/placeholder.jpg'} alt="cover" className="w-12 h-12 object-cover rounded mr-4 bg-zinc-800 pointer-events-none" />
                 
-                <div className="flex-1">
-                  <p className="text-white font-medium group-hover:text-gold-400 transition-colors line-clamp-1">{track.track_name}</p>
-                  <p className="text-zinc-400 text-sm line-clamp-1">{track.artist_name}</p>
-                </div>
-                
-                {track.mood && (
-                  <div className="hidden md:block px-4">
-                    <span className="text-[10px] tracking-widest uppercase px-2 py-1 rounded-full border border-white/20 text-zinc-300">
-                      {track.mood}
-                    </span>
+                <div className="flex-grow flex-shrink min-w-0 flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium group-hover:text-gold-400 transition-colors line-clamp-1">{track.track_name}</p>
+                    <p className="text-zinc-400 text-sm line-clamp-1">{track.artist_name}</p>
                   </div>
-                )}
+                  
+                  <div className="flex items-center gap-3">
+                    {track.mood && (
+                      <div className="hidden md:block">
+                        <span className="text-[10px] tracking-widest uppercase px-2 py-1 rounded-full border border-white/20 text-zinc-300">
+                          {track.mood}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (window.confirm("Remove this song from the playlist?")) {
+                          try {
+                            await axios.post("http://127.0.0.1:5000/api/playlists/remove_track", {
+                              playlist_id: _id,
+                              file_url: track.file_url
+                            });
+                            const updatedTracks = tracks.filter(t => t.file_url !== track.file_url);
+                            setActivePlaylist(prev => ({ ...prev, tracks: updatedTracks }));
+                            fetchLibraryData();
+                            window.dispatchEvent(new Event('libraryUpdate'));
+                          } catch (error) {
+                            console.error("Failed to remove track from playlist", error);
+                          }
+                        }
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-zinc-400 hover:text-red-400 p-2 transition-all"
+                      title="Remove from playlist"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
               </div>
             ))
           )}
@@ -270,7 +357,7 @@ export default function Library({ currentUser, onPlayTrack }) {
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20 animate-fade-in">
-      <div className="flex items-center justify-between mb-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
         <h1 className="text-4xl font-serif text-white">Your Library</h1>
         
         <form onSubmit={handleCreatePlaylist} className="flex items-center gap-2 bg-white/5 p-1 rounded-full border border-white/10 focus-within:border-gold-500/50 transition-colors">
@@ -298,7 +385,7 @@ export default function Library({ currentUser, onPlayTrack }) {
               <div className="w-12 h-12 bg-white/5 rounded-xl" />
               <div className="h-8 bg-white/5 rounded w-48" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {[1, 2, 3].map(i => (
                 <div key={i} className="flex gap-4 p-2 bg-white/5 rounded-xl h-20" />
               ))}
@@ -322,7 +409,7 @@ export default function Library({ currentUser, onPlayTrack }) {
                 <p className="text-zinc-500">You haven't liked any songs yet. Click the heart icon on any track to save it here!</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                 {favorites.map((track, idx) => renderTrackCard(track, favorites, idx))}
               </div>
             )}
@@ -336,32 +423,32 @@ export default function Library({ currentUser, onPlayTrack }) {
                 <p className="text-zinc-500">You don't have any custom playlists yet. Create one above!</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-2 gap-4 md:gap-8">
                 {playlists.map((pl) => (
                     <div 
                       key={pl._id} 
                       onClick={() => setActivePlaylist(pl)}
-                      className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:border-white/20 transition-all cursor-pointer hover:scale-105 group"
+                      className="bg-white/5 border border-white/10 rounded-2xl p-4 sm:p-6 hover:border-white/20 transition-all cursor-pointer hover:scale-105 group"
                     >
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h3 className="text-xl font-medium text-white mb-1 group-hover:text-gold-400 transition-colors">{pl.name}</h3>
-                          <p className="text-sm text-zinc-400">{pl.tracks.length} tracks</p>
+                      <div className="flex justify-between items-start mb-2 sm:mb-4">
+                        <div className="min-w-0">
+                          <h3 className="text-sm sm:text-xl font-medium text-white mb-1 group-hover:text-gold-400 transition-colors truncate">{pl.name}</h3>
+                          <p className="text-xs sm:text-sm text-zinc-400">{pl.tracks.length} tracks</p>
                         </div>
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
                             if (pl.tracks.length > 0) onPlayTrack(pl.tracks[0], pl.tracks);
                           }}
-                          className="w-10 h-10 rounded-full bg-gold-500 text-black flex items-center justify-center hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 shadow-lg"
+                          className="w-7 h-7 sm:w-10 sm:h-10 rounded-full bg-gold-500 text-black flex items-center justify-center hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 shadow-lg shrink-0"
                         >
-                          <span className="ml-1">▶</span>
+                          <span className="ml-0.5 sm:ml-1 text-xs sm:text-base">▶</span>
                         </button>
                       </div>
                       {pl.tracks.length === 0 ? (
-                        <p className="text-sm text-zinc-500 italic mt-4">Empty playlist.</p>
+                        <p className="text-xs sm:text-sm text-zinc-500 italic mt-2 sm:mt-4">Empty playlist.</p>
                       ) : (
-                        <div className="space-y-2 mt-4">
+                        <div className="space-y-2 mt-4 hidden sm:block">
                           {pl.tracks.slice(0, 5).map((track, idx) => (
                             <div key={idx} className="flex items-center gap-3 p-2 rounded">
                               <img src={track.cover_url || '/placeholder.jpg'} alt="" className="w-8 h-8 rounded object-cover" />

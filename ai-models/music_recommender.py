@@ -84,13 +84,25 @@ class RegionalMusicRecommender:
         fetch_limit = 50
         all_tracks = []
 
+        indian_languages = ['hindi', 'kannada', 'tamil', 'telugu', 'malayalam', 'punjabi', 'bengali', 'marathi', 'gujarati', 'urdu']
+        country_mapping = {
+            'spanish': 'ES', 'french': 'FR', 'japanese': 'JP', 'korean': 'KR',
+            'german': 'DE', 'italian': 'IT', 'arabic': 'AE', 'portuguese': 'BR'
+        }
+
         for lang in languages:
-            country_code = 'IN' if lang.lower() == 'hindi' else 'US'
+            lang_lower = lang.lower()
             
-            if lang.lower() == 'hindi':
+            if lang_lower in indian_languages:
+                country_code = 'IN'
+                # Use Indian specific queries but insert the actual language
                 base_query = random.choice(hindi_queries.get(mood, hindi_queries['calm']))
-                search_query = base_query
+                if lang_lower == 'hindi':
+                    search_query = base_query
+                else:
+                    search_query = base_query.replace('hindi', lang_lower).replace('bollywood', lang_lower)
             else:
+                country_code = country_mapping.get(lang_lower, 'US')
                 base_query = random.choice(self.regional_queries[mood])
                 search_query = f"{base_query} {lang}"
             
@@ -124,7 +136,7 @@ class RegionalMusicRecommender:
             except Exception as e:
                 print(f"Error: {e}")
                 
-            # Fetch JioSaavn if it's Hindi
+            # Fetch JioSaavn if it's an Indian language
             saavn_tracks = []
             if country_code == 'IN':
                 print(f"Fetching from JioSaavn for query: {search_query}")

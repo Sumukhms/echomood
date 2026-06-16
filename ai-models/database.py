@@ -283,6 +283,18 @@ class MongoManager:
             return new_status
         return False
 
+    def remove_track_from_playlist(self, playlist_id, file_url):
+        return self.playlists.update_one(
+            {"_id": ObjectId(playlist_id)},
+            {"$pull": {"tracks": {"file_url": file_url}}}
+        )
+
+    def update_playlist_name(self, playlist_id, name):
+        return self.playlists.update_one(
+            {"_id": ObjectId(playlist_id)},
+            {"$set": {"name": name}}
+        )
+
     def get_user_profile(self, username):
         user = self.users.find_one({"username": username})
         if user:

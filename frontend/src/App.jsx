@@ -68,6 +68,8 @@ export default function App() {
 
   const [queue, setQueue] = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
+  const [isEndlessSession, setIsEndlessSession] = useState(false);
+  const [sessionMood, setSessionMood] = useState(null);
 
   // Player Modes
   const [isShuffle, setIsShuffle] = useState(false);
@@ -97,11 +99,13 @@ export default function App() {
     setAiExplanation(null);
   }, []);
 
-  const playTrack = (trackList, startIndex) => {
+  const playTrack = (trackList, startIndex, options = {}) => {
     if (!Array.isArray(trackList) || trackList.length === 0) return;
     const safeIndex = Math.max(0, Math.min(startIndex, trackList.length - 1));
     setQueue(trackList.map(normaliseTrack));
     setCurrentTrackIndex(safeIndex);
+    setIsEndlessSession(!!options.isEndless);
+    setSessionMood(options.seedMood || null);
   };
 
   const playNext = async () => {
@@ -119,10 +123,10 @@ export default function App() {
     } else if (repeatMode === 1) {
       // Repeat All Mode
       setCurrentTrackIndex(0);
-    } else if (queue.length > 0) {
-      // Infinite "Smart Radio" Mode: Fetch more tracks
+    } else if (isEndlessSession && queue.length > 0) {
+      // Infinite "Smart Radio" / "Endless DJ" Mode: Fetch more tracks
       const currentTrack = queue[currentTrackIndex];
-      const currentMood = currentTrack?.mood || (currentTrack?.mood_tags ? currentTrack.mood_tags[0] : "calm");
+      const currentMood = sessionMood || currentTrack?.mood || (currentTrack?.mood_tags ? currentTrack.mood_tags[0] : "calm");
       try {
         const res = await axios.post("http://127.0.0.1:5000/api/radio/next", {
           username: currentUser?.username,
@@ -149,14 +153,14 @@ export default function App() {
   };
 
   // Single universal handler used by ALL panels
-  // signature: handlePlay(clickedTrack, fullTrackList)
-  const handlePlay = (clickedTrack, trackList) => {
+  // signature: handlePlay(clickedTrack, fullTrackList, options)
+  const handlePlay = (clickedTrack, trackList, options = {}) => {
       const list = Array.isArray(trackList) ? trackList : [clickedTrack];
       const needle = clickedTrack.file_url || clickedTrack.preview_url;
       const idx = list.findIndex(
         (t) => (t.file_url || t.preview_url) === needle
       );
-      playTrack(list, idx >= 0 ? idx : 0);
+      playTrack(list, idx >= 0 ? idx : 0, options);
   };
 
   const handleOnboardingComplete = (preferences) => {
@@ -175,11 +179,21 @@ export default function App() {
     if (aiExplanation && isDjVoiceEnabled && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(aiExplanation);
-      utterance.pitch = 0.9;
-      utterance.rate = 1.0;
+      
+      const savedVoiceUri = localStorage.getItem(`echomood_voice_${currentUser?.username}`);
+      const savedPitch = parseFloat(localStorage.getItem(`echomood_pitch_${currentUser?.username}`) || '1.0');
+      const savedRate = parseFloat(localStorage.getItem(`echomood_rate_${currentUser?.username}`) || '1.0');
+
+      if (savedVoiceUri) {
+        const voice = window.speechSynthesis.getVoices().find(v => v.voiceURI === savedVoiceUri);
+        if (voice) utterance.voice = voice;
+      }
+      
+      utterance.pitch = savedPitch;
+      utterance.rate = savedRate;
       window.speechSynthesis.speak(utterance);
     }
-  }, [aiExplanation, isDjVoiceEnabled]);
+  }, [aiExplanation, isDjVoiceEnabled, currentUser]);
 
   if (!currentUser) return <AuthScreen setAuth={setCurrentUser} />;
 
@@ -220,14 +234,14 @@ export default function App() {
               <div className="flex-grow border-t border-white/10"></div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="text"
-                placeholder="Enter 4-letter Join Code"
+                placeholder="Enter Code"
                 maxLength={4}
                 value={partyInput}
                 onChange={(e) => setPartyInput(e.target.value.toUpperCase())}
-                className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-white text-center text-xl tracking-widest uppercase focus:outline-none focus:border-gold-500/50"
+                className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 text-white text-center text-lg sm:text-xl tracking-widest uppercase focus:outline-none focus:border-gold-500/50"
               />
               <button
                 onClick={async () => {
@@ -240,9 +254,9 @@ export default function App() {
                   }
                 }}
                 disabled={partyInput.length !== 4}
-                className="px-8 py-4 bg-white/10 text-white font-semibold rounded-2xl hover:bg-white/20 transition-colors disabled:opacity-50"
+                className="px-6 py-3 sm:px-8 sm:py-4 bg-white/10 text-white font-semibold rounded-2xl hover:bg-white/20 transition-colors disabled:opacity-50 text-sm sm:text-base"
               >
-                Join
+                Join Room
               </button>
             </div>
           </div>
