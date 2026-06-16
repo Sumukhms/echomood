@@ -213,33 +213,36 @@ export default function Library({ currentUser, onPlayTrack }) {
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row items-end gap-8 mb-10 pb-10 border-b border-white/10">
-          <div className="w-52 h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
+        <div className="flex flex-col md:flex-row items-center md:items-end text-center md:text-left gap-8 mb-10 pb-10 border-b border-white/10">
+          <div className="w-48 h-48 md:w-52 md:h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
             {coverImage ? (
               <img src={coverImage} alt="playlist cover" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-zinc-700 to-zinc-900 flex items-center justify-center text-4xl">🎧</div>
             )}
           </div>
-          <div>
+          <div className="flex flex-col items-center md:items-start w-full">
             <p className="text-xs uppercase tracking-widest text-white block mb-2 font-bold">Custom Playlist</p>
             {isEditingName ? (
-              <input
-                type="text"
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                onBlur={handleRenamePlaylist}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleRenamePlaylist();
-                  if (e.key === 'Escape') setIsEditingName(false);
-                }}
-                autoFocus
-                className="bg-white/10 text-white text-3xl md:text-5xl font-black rounded px-3 py-1 outline-none border border-gold-500 max-w-full"
-              />
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full max-w-lg">
+                <input
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onBlur={handleRenamePlaylist}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleRenamePlaylist();
+                    if (e.key === 'Escape') setIsEditingName(false);
+                  }}
+                  autoFocus
+                  className="bg-white/10 text-white text-3xl md:text-5xl font-black rounded px-3 py-1 outline-none border border-gold-500 w-full text-center md:text-left"
+                />
+                <button onClick={handleRenamePlaylist} className="px-4 py-2 bg-gold-500 text-black font-bold rounded">Save</button>
+              </div>
             ) : (
-              <div className="flex items-center gap-3 group/title">
+              <div className="flex items-center justify-center md:justify-start gap-3 group/title w-full">
                 <h1 
-                  className="text-5xl md:text-7xl font-black text-white tracking-tighter mb-4 cursor-pointer hover:text-gold-400 transition-colors"
+                  className="text-4xl sm:text-5xl md:text-7xl font-black text-white tracking-tighter mb-4 cursor-pointer hover:text-gold-400 transition-colors text-center md:text-left break-words max-w-full"
                   onDoubleClick={() => {
                     setEditedName(name);
                     setIsEditingName(true);

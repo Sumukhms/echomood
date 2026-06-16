@@ -411,12 +411,14 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
 
       {/* Instant Vibes / Smart Radio Section */}
       <section className="mb-14">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-serif text-white mb-6 px-1">Instant Vibes</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 gap-4">
+        <h2 className="text-xl sm:text-2xl md:text-3xl font-serif text-white mb-6 px-1 font-bold">
+          {new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
           {/* Smart Radio Card */}
           <div 
             onClick={handleStartSmartRadio}
-            className="relative overflow-hidden rounded-2xl border border-gold-500/20 bg-gradient-to-br from-gold-500/10 via-zinc-900 to-zinc-950 p-4 hover:border-gold-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(234,179,8,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
+            className="relative overflow-hidden rounded-2xl border border-gold-500/20 bg-gradient-to-br from-gold-500/10 via-zinc-900 to-zinc-950 p-3 hover:border-gold-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(234,179,8,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="text-2xl shrink-0 p-2 bg-gold-500/10 rounded-xl border border-gold-500/20">📻</div>
@@ -433,7 +435,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           {/* Zen Mode Card */}
           <div 
             onClick={() => handleStartQuickVibe("calm")}
-            className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-zinc-900 to-zinc-950 p-4 hover:border-emerald-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(16,185,129,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
+            className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-zinc-900 to-zinc-950 p-3 hover:border-emerald-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(16,185,129,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="text-2xl shrink-0 p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">🍃</div>
@@ -450,7 +452,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           {/* Energy Boost Card */}
           <div 
             onClick={() => handleStartQuickVibe("energetic")}
-            className="relative overflow-hidden rounded-2xl border border-pink-500/20 bg-gradient-to-br from-pink-500/10 via-zinc-900 to-zinc-950 p-4 hover:border-pink-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(236,72,153,0.15)] flex items-center justify-between gap-3 min-h-[72px] col-span-2 md:col-span-1"
+            className="relative overflow-hidden rounded-2xl border border-pink-500/20 bg-gradient-to-br from-pink-500/10 via-zinc-900 to-zinc-950 p-3 hover:border-pink-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(236,72,153,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="text-2xl shrink-0 p-2 bg-pink-500/10 rounded-xl border border-pink-500/20">⚡</div>

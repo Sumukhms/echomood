@@ -1019,6 +1019,7 @@ def create_party():
         "current_track": None,
         "is_playing": False,
         "current_time": 0,
+        "queue": [],
         "last_updated": time.time()
     }
     return jsonify({"success": True, "code": code})
@@ -1058,9 +1059,121 @@ def sync_party():
             session["current_time"] = payload["current_time"]
         session["last_updated"] = time.time()
         
-    return jsonify({"success": True, "session": session})
+    return jsonify({
+        "success": True, 
+        "session": session,
+        "queue": session.get("queue", []),
+        "current_track": session.get("current_track")
+    })
+
+@app.route("/api/party/add", methods=["POST"])
+def party_add():
+    payload = request.get_json(silent=True) or {}
+    code = (payload.get("code") or "").upper()
+    track = payload.get("track")
+    if code not in PARTY_SESSIONS:
+        return jsonify({"success": False, "error": "Invalid code"}), 404
+    if not track:
+        return jsonify({"success": False, "error": "Missing track"}), 400
+    track["upvotes"] = 0
+    PARTY_SESSIONS[code].setdefault("queue", []).append(track)
+    return jsonify({"success": True, "queue": PARTY_SESSIONS[code]["queue"]})
+
+@app.route("/api/party/upvote", methods=["POST"])
+def party_upvote():
+    payload = request.get_json(silent=True) or {}
+    code = (payload.get("code") or "").upper()
+    track_index = payload.get("track_index")
+    if code not in PARTY_SESSIONS:
+        return jsonify({"success": False, "error": "Invalid code"}), 404
+    queue = PARTY_SESSIONS[code].get("queue", [])
+    if track_index is None or track_index < 0 or track_index >= len(queue):
+        return jsonify({"success": False, "error": "Invalid index"}), 400
+    queue[track_index]["upvotes"] = queue[track_index].get("upvotes", 0) + 1
+    queue.sort(key=lambda x: x.get("upvotes", 0), reverse=True)
+    PARTY_SESSIONS[code]["queue"] = queue
+    return jsonify({"success": True, "queue": queue})
+
+@app.route("/api/wrapped", methods=["GET"])
+def get_wrapped():
+    username = request.args.get("username", "").strip()
+    if not username:
+        return jsonify({"success": False, "error": "Username required"}), 400
+        
+    mood_history = db_manager.get_mood_history(username)
+    mood_counts = {}
+    for entry in mood_history:
+        m = entry.get("mood", "calm")
+        mood_counts[m] = mood_counts.get(m, 0) + 1
+    top_mood = max(mood_counts, key=mood_counts.get) if mood_counts else "calm"
+    
+    user_history = db_manager.get_user_history(username) if hasattr(db_manager, "get_user_history") else []
+    total_minutes = len(user_history) * 3
+    
+    track_counts = {}
+    for item in user_history:
+        t_name = item.get("track_name", "Unknown")
+        a_name = item.get("artist_name", "Unknown")
+        key = f"{t_name} by {a_name}"
+        track_counts[key] = track_counts.get(key, 0) + 1
+        
+    sorted_tracks = sorted(track_counts.items(), key=lambda x: x[1], reverse=True)
+    top_tracks = [{"track": k, "count": v} for k, v in sorted_tracks[:5]]
+    
+    return jsonify({
+        "success": True,
+        "top_mood": top_mood,
+        "top_tracks": top_tracks,
+        "total_minutes": total_minutes
+    })
+
+
+# ── story generation ─────────────────────────────────────────────────────────
+
+import io
+import base64
+from PIL import Image, ImageDraw, ImageFilter
+
+@app.route("/api/story/generate", methods=["POST"])
+def generate_story():
+    payload = request.get_json(silent=True) or {}
+    track_name = payload.get("track_name", "Unknown Track")
+    artist_name = payload.get("artist_name", "Unknown Artist")
+    cover_url = payload.get("cover_url", "")
+    mood = payload.get("mood", "calm")
+    
+    try:
+        if cover_url:
+            resp = requests.get(cover_url, timeout=5)
+            resp.raise_for_status()
+            cover_img = Image.open(io.BytesIO(resp.content)).convert("RGB")
+            cover_img = cover_img.resize((800, 800))
+        else:
+            raise ValueError("No cover URL")
+    except Exception as e:
+        print(f"Error downloading cover art: {e}")
+        cover_img = Image.new("RGB", (800, 800), color=(0, 0, 0))
+        
+    bg_img = Image.new("RGB", (1080, 1920))
+    
+    bg_blur = cover_img.resize((1080, 1920))
+    bg_blur = bg_blur.filter(ImageFilter.GaussianBlur(100))
+    bg_img.paste(bg_blur, (0, 0))
+    
+    x_offset = (1080 - 800) // 2
+    y_offset = (1920 - 800) // 2
+    bg_img.paste(cover_img, (x_offset, y_offset))
+    
+    img_byte_arr = io.BytesIO()
+    bg_img.save(img_byte_arr, format='JPEG')
+    base64_str = base64.b64encode(img_byte_arr.getvalue()).decode('utf-8')
+    
+    return jsonify({
+        "success": True,
+        "image_b64": f"data:image/jpeg;base64,{base64_str}"
+    })
 
 
 if __name__ == "__main__":
     print("Starting VIP AI Server on port 5000...")
-    app.run(port=5000, debug=True)
+    app.run(port=5000, debug=True)

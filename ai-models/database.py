@@ -377,3 +377,10 @@ class MongoManager:
             "source": doc.get("source", "unknown"),
             "timestamp": doc.get("timestamp").isoformat() if doc.get("timestamp") else None
         } for doc in history]
+
+    def get_user_history(self, username):
+        username = (username or "").strip()
+        if not username:
+            return []
+        # Return all feedback items to calculate top tracks and listening time
+        return list(self.db["feedback"].find({"username": username}))

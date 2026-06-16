@@ -27,7 +27,9 @@ export default function GlobalPlayer({
   isShuffle,
   setIsShuffle,
   repeatMode,
-  setRepeatMode
+  setRepeatMode,
+  playTrackAtIndex,
+  removeFromQueue
 }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -55,8 +57,23 @@ export default function GlobalPlayer({
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Sleep Timer state
+  // Sleep Timer state
   const [sleepTimer, setSleepTimer] = useState(null); // in minutes
   const [showSleepMenu, setShowSleepMenu] = useState(false);
+
+  // Queue state
+  const [showQueue, setShowQueue] = useState(false);
+
+  // EQ state
+  const [showEQ, setShowEQ] = useState(false);
+  const [eqBands, setEqBands] = useState({ 60: 0, 230: 0, 910: 0, 3600: 0, 14000: 0 });
+
+  // Story state
+  const [isGeneratingStory, setIsGeneratingStory] = useState(false);
+
+  const localTrack = queue[currentTrackIndex] ?? null;
+  const currentTrack = (partyCode && !isPartyHost && partyTrack) ? partyTrack : localTrack;
+  const [partyQueue, setPartyQueue] = useState([]);
 
   const handleLyricChange = useCallback((lineText) => {
     if (!lineText) return;
@@ -72,8 +89,7 @@ export default function GlobalPlayer({
     lyricColorRef.current = newColor;
   }, []);
 
-  const localTrack = queue[currentTrackIndex] ?? null;
-  const currentTrack = (partyCode && !isPartyHost && partyTrack) ? partyTrack : localTrack;
+
   const trackUrl = currentTrack?.file_url || "";
   const isExternal = isYouTube(resolvedUrl);
 
@@ -221,16 +237,19 @@ export default function GlobalPlayer({
             payload.current_time = currentTime;
           }
           const res = await axios.post("http://127.0.0.1:5000/api/party/sync", payload);
-          if (res.data?.success && !isPartyHost) {
+          if (res.data?.success) {
             const state = res.data.session;
-            if (state.current_track) setPartyTrack(state.current_track);
-            if (state.is_playing !== isPlaying) setIsPlaying(state.is_playing);
-            if (Math.abs(currentTime - state.current_time) > 3) {
-              setCurrentTime(state.current_time);
-              if (isExternal && ytPlayerRef.current?.seekTo) {
-                ytPlayerRef.current.seekTo(state.current_time, true);
-              } else if (audioRef.current) {
-                audioRef.current.currentTime = state.current_time;
+            if (state.queue) setPartyQueue(state.queue);
+            if (!isPartyHost) {
+              if (state.current_track) setPartyTrack(state.current_track);
+              if (state.is_playing !== isPlaying) setIsPlaying(state.is_playing);
+              if (Math.abs(currentTime - state.current_time) > 3) {
+                setCurrentTime(state.current_time);
+                if (isExternal && ytPlayerRef.current?.seekTo) {
+                  ytPlayerRef.current.seekTo(state.current_time, true);
+                } else if (audioRef.current) {
+                  audioRef.current.currentTime = state.current_time;
+                }
               }
             }
           }
@@ -267,6 +286,12 @@ export default function GlobalPlayer({
               if (event.data === window.YT.PlayerState.PLAYING) {
                 setIsPlaying(true);
                 setDuration(event.target.getDuration());
+                try {
+                  // Handle gapless crossfade simulation for YouTube
+                  if (event.target.getDuration() > 10 && event.target.getDuration() - event.target.getCurrentTime() < 2 && queue.length > 1) {
+                    playNext();
+                  }
+                } catch { }
               } else if (event.data === window.YT.PlayerState.ENDED) {
                 if (repeatMode === 2) {
                   event.target.seekTo(0);
@@ -409,18 +434,35 @@ export default function GlobalPlayer({
     
     // Create AudioContext only once on first play
     if (isPlaying && !audioCtxRef.current) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
       audioCtxRef.current = new AudioContext();
       
       try {
         trackNodeRef.current = audioCtxRef.current.createMediaElementSource(audioRef.current);
-        biquadFilterRef.current = audioCtxRef.current.createBiquadFilter();
+        
+        // 5-band EQ
+        const bands = [60, 230, 910, 3600, 14000];
+        const filters = bands.map(freq => {
+          const filter = audioCtxRef.current.createBiquadFilter();
+          filter.type = freq === 60 ? "lowshelf" : freq === 14000 ? "highshelf" : "peaking";
+          filter.frequency.value = freq;
+          filter.Q.value = 1;
+          filter.gain.value = eqBands[freq] || 0;
+          return filter;
+        });
+        
+        biquadFilterRef.current = filters; // Array of filters
+        
         stereoPannerRef.current = audioCtxRef.current.createStereoPanner();
         analyserRef.current = audioCtxRef.current.createAnalyser();
         analyserRef.current.fftSize = 256;
         
-        trackNodeRef.current.connect(biquadFilterRef.current);
-        biquadFilterRef.current.connect(stereoPannerRef.current);
+        // Connect chain: source -> eq0 -> eq1 -> eq2 -> eq3 -> eq4 -> panner -> analyser -> destination
+        trackNodeRef.current.connect(filters[0]);
+        for (let i = 0; i < filters.length - 1; i++) {
+          filters[i].connect(filters[i+1]);
+        }
+        filters[filters.length - 1].connect(stereoPannerRef.current);
         stereoPannerRef.current.connect(analyserRef.current);
         analyserRef.current.connect(audioCtxRef.current.destination);
       } catch (e) {
@@ -433,49 +475,53 @@ export default function GlobalPlayer({
     }
   }, [isPlaying]);
 
+  // Update EQ when state changes
+  useEffect(() => {
+    if (!biquadFilterRef.current || !Array.isArray(biquadFilterRef.current)) return;
+    const bands = [60, 230, 910, 3600, 14000];
+    bands.forEach((freq, index) => {
+      const filter = biquadFilterRef.current[index];
+      if (filter) {
+        filter.gain.value = eqBands[freq] || 0;
+      }
+    });
+  }, [eqBands]);
+
+  // Handle EQ preset
+  const setEqPreset = (preset) => {
+    switch(preset) {
+      case 'bass': setEqBands({ 60: 6, 230: 4, 910: 0, 3600: -2, 14000: -2 }); break;
+      case 'vocal': setEqBands({ 60: -2, 230: 0, 910: 4, 3600: 5, 14000: 2 }); break;
+      case 'acoustic': setEqBands({ 60: 2, 230: 2, 910: 0, 3600: 3, 14000: 4 }); break;
+      case 'flat': setEqBands({ 60: 0, 230: 0, 910: 0, 3600: 0, 14000: 0 }); break;
+    }
+  };
+
   // Apply mood-based EQ settings
   useEffect(() => {
     if (!biquadFilterRef.current || !currentTrack) return;
     
     const mood = (currentTrack.mood || "calm").toLowerCase();
-    const filter = biquadFilterRef.current;
     
     // Reset defaults
-    filter.type = "peaking";
-    filter.frequency.value = 1000;
-    filter.Q.value = 1;
-    filter.gain.value = 0;
-
     switch (mood) {
       case "energetic":
       case "party":
-        // Bass boost
-        filter.type = "lowshelf";
-        filter.frequency.value = 200;
-        filter.gain.value = 8;
+        setEqBands({ 60: 8, 230: 4, 910: 0, 3600: 2, 14000: 2 });
         break;
       case "calm":
       case "sleepy":
-        // High-cut (warm tone)
-        filter.type = "highshelf";
-        filter.frequency.value = 4000;
-        filter.gain.value = -10;
+        setEqBands({ 60: -2, 230: -1, 910: 0, 3600: -4, 14000: -6 });
         break;
       case "focused":
       case "lo-fi":
-        // Mid-scoop
-        filter.type = "peaking";
-        filter.frequency.value = 1000;
-        filter.Q.value = 1;
-        filter.gain.value = -6;
+        setEqBands({ 60: 0, 230: 2, 910: -6, 3600: 2, 14000: 0 });
         break;
       case "happy":
-        // High boost (crisp)
-        filter.type = "highshelf";
-        filter.frequency.value = 3000;
-        filter.gain.value = 6;
+        setEqBands({ 60: 2, 230: 2, 910: 2, 3600: 6, 14000: 6 });
         break;
       default:
+        setEqPreset('flat');
         break;
     }
   }, [currentTrack]);
@@ -666,6 +712,40 @@ export default function GlobalPlayer({
   // Always allow skipping forward to trigger Smart Radio infinite music!
   const canSkipForward = true;
 
+  const togglePlaylistMenu = (e) => {
+    e.stopPropagation();
+    setShowPlaylistMenu(!showPlaylistMenu);
+  };
+
+  const generateStory = async () => {
+    if (!currentTrack || isGeneratingStory) return;
+    setIsGeneratingStory(true);
+    try {
+      const res = await axios.post("http://127.0.0.1:5000/api/story/generate", {
+        track_name: currentTrack.track_name,
+        artist_name: currentTrack.artist_name,
+        cover_url: currentTrack.cover_url,
+        mood: currentTrack.mood || "calm"
+      });
+      if (res.data?.success && res.data.image_b64) {
+        const a = document.createElement("a");
+        a.href = res.data.image_b64;
+        a.download = `EchoMood_Story_${currentTrack.track_name}.jpg`;
+        a.click();
+      }
+    } catch (err) {
+      console.error("Story generation failed", err);
+    } finally {
+      setIsGeneratingStory(false);
+    }
+  };
+
+  const handleUpvote = async (idx) => {
+    try {
+      await axios.post("http://127.0.0.1:5000/api/party/upvote", { code: partyCode, track_index: idx });
+    } catch (e) { console.error(e); }
+  };
+
   return (
     <div className={`fixed z-50 transition-all duration-500 ease-in-out ${isFullScreen ? 'inset-0 bg-black/95 backdrop-blur-3xl' : 'bottom-16 md:bottom-0 left-0 right-0 border-t border-white/10 bg-black/85 backdrop-blur-2xl'}`}>
       {/* Background Canvas Visualizer */}
@@ -701,13 +781,56 @@ export default function GlobalPlayer({
         )}
       </div>
 
+      {/* EQ Drawer */}
+      <div 
+        className={`absolute bottom-full left-0 right-0 bg-black/95 backdrop-blur-3xl border-t border-white/10 transition-all duration-500 overflow-hidden ${
+          showEQ ? "max-h-[40vh] opacity-100" : "max-h-0 opacity-0 border-t-transparent"
+        }`}
+      >
+        <div className="max-w-xl mx-auto py-6 px-4">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-white font-medium text-sm uppercase tracking-widest">Equalizer</h3>
+            <div className="flex gap-2">
+              {['flat', 'bass', 'vocal', 'acoustic'].map(p => (
+                <button key={p} onClick={() => setEqPreset(p)} className="text-[10px] text-zinc-400 hover:text-white uppercase px-2 py-1 border border-zinc-700 rounded">{p}</button>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-between gap-4">
+            {[60, 230, 910, 3600, 14000].map(freq => (
+              <div key={freq} className="flex flex-col items-center gap-2">
+                <input 
+                  type="range" min="-12" max="12" value={eqBands[freq] || 0}
+                  onChange={(e) => setEqBands(prev => ({...prev, [freq]: Number(e.target.value)}))}
+                  className="h-24 w-1 accent-gold-500 appearance-none bg-zinc-800 rounded-full vertical-range"
+                  style={{ writingMode: 'bt-lr', appearance: 'slider-vertical' }}
+                />
+                <span className="text-[9px] text-zinc-500">{freq > 1000 ? `${freq/1000}k` : freq}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Hidden audio element — only used for local mp3 tracks */}
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
         src={!isExternal && resolvedUrl ? resolvedUrl : undefined}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
-        onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime || 0)}
+        onTimeUpdate={(e) => {
+          const newTime = e.currentTarget.currentTime || 0;
+          setCurrentTime(newTime);
+          const dur = e.currentTarget.duration;
+          if (dur > 10 && dur - newTime < 2 && !partyCode) {
+            // Gapless playback simulation
+            if (currentTrackIndex < queue.length - 1 || repeatMode !== 0 || isEndlessSession) {
+              const evt = new Event('ended');
+              e.currentTarget.dispatchEvent(evt);
+              e.currentTarget.pause();
+            }
+          }
+        }}
         onEnded={() => {
           if (repeatMode === 2) {
             audioRef.current.currentTime = 0;
@@ -835,7 +958,7 @@ export default function GlobalPlayer({
               {/* Add to Playlist */}
               <div className="relative">
                 <button 
-                  onClick={() => setShowPlaylistMenu(!showPlaylistMenu)}
+                  onClick={togglePlaylistMenu}
                   className="w-10 h-10 rounded-full border border-zinc-700 flex items-center justify-center text-zinc-400 hover:text-white hover:border-white transition-colors"
                   title="Add to Playlist"
                 >
@@ -860,6 +983,49 @@ export default function GlobalPlayer({
                   </div>
                 )}
               </div>
+
+              {/* Copy Deep Link */}
+              <button
+                onClick={() => {
+                  const shareUrl = `${window.location.origin}/?play=${encodeURIComponent(currentTrack.track_name)}`;
+                  navigator.clipboard.writeText(shareUrl);
+                  // Optional: add a small visual toast here if we had one
+                }}
+                className="p-2 rounded-full transition-all text-zinc-400 hover:text-white hover:bg-white/10"
+                title="Copy Song Link"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+
+              {/* Share to Story */}
+              <button
+                onClick={generateStory}
+                disabled={isGeneratingStory}
+                className={`p-2 rounded-full transition-all ${isGeneratingStory ? 'opacity-50 cursor-not-allowed text-zinc-400' : 'text-zinc-400 hover:text-white hover:bg-white/10'}`}
+                title="Share to Story"
+              >
+                {isGeneratingStory ? '⏳' : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </button>
+
+              {/* EQ Toggle */}
+              <button
+                onClick={() => setShowEQ(!showEQ)}
+                className={`p-2 rounded-full transition-all ${
+                  showEQ ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.4)]" : "text-zinc-400 hover:text-white hover:bg-white/10"
+                }`}
+                title="Equalizer"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 22v-6M4 8V2M12 22v-9M12 5V2M20 22v-12M20 6V2M1 14h6M9 11h6M17 8h6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
 
               {/* Lyrics Toggle */}
               <button
@@ -1167,6 +1333,113 @@ export default function GlobalPlayer({
           </>
         )}
       </div>
-      </div>
+        {/* Up Next Queue Panel */}
+      {showQueue && (
+        <div className="absolute bottom-24 right-4 md:right-8 w-80 max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto bg-zinc-950/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl p-4 z-50 animate-fade-in custom-scrollbar">
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
+            <h3 className="text-white font-bold text-lg font-serif">
+              {partyCode ? "Party Queue 🎉" : "Up Next"}
+            </h3>
+            <button onClick={() => setShowQueue(false)} className="text-zinc-400 hover:text-white">✕</button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {(partyCode ? partyQueue : queue).map((track, idx) => {
+              const isPlaying = !partyCode && idx === currentTrackIndex;
+              return (
+                <div 
+                  key={idx}
+                  onClick={() => !partyCode && playTrackAtIndex && playTrackAtIndex(idx)}
+                  className={`flex items-center justify-between p-2 rounded-xl group transition-colors ${
+                    !partyCode ? 'cursor-pointer' : ''
+                  } ${
+                    isPlaying ? 'bg-gold-500/10 border border-gold-500/30' : 'hover:bg-white/5 border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0">
+                      <img src={track.cover_url || '/covers/calm.png'} className="w-full h-full object-cover" />
+                      {isPlaying && (
+                        <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                          <div className="flex gap-0.5 items-end h-3">
+                            <div className="w-0.5 bg-gold-400 h-1 animate-[bounce_1s_infinite]"></div>
+                            <div className="w-0.5 bg-gold-400 h-3 animate-[bounce_1s_infinite_0.2s]"></div>
+                            <div className="w-0.5 bg-gold-400 h-2 animate-[bounce_1s_infinite_0.4s]"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`truncate text-sm font-medium ${isPlaying ? 'text-gold-400' : 'text-white'}`}>
+                        {track.track_name}
+                      </p>
+                      <p className="truncate text-xs text-zinc-400">{track.artist_name}</p>
+                    </div>
+                  </div>
+                  
+                  {partyCode ? (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleUpvote(idx); }}
+                      className="p-2 text-zinc-400 hover:text-gold-400 transition-all shrink-0 flex items-center gap-1 bg-white/5 rounded-lg"
+                    >
+                      <span className="text-xs font-bold">{track.upvotes || 0}</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                    </button>
+                  ) : (
+                    !isPlaying && removeFromQueue && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); removeFromQueue(idx); }}
+                        className="opacity-0 group-hover:opacity-100 p-2 text-zinc-500 hover:text-red-400 transition-all shrink-0"
+                      >
+                        ✕
+                      </button>
+                    )
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* EQ Panel */}
+      {showEQ && (
+        <div className="absolute bottom-24 right-4 md:right-32 w-80 max-w-[calc(100vw-2rem)] bg-zinc-950/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl p-6 z-50 animate-fade-in">
+          <div className="flex items-center justify-between mb-6 pb-2 border-b border-white/10">
+            <h3 className="text-white font-bold text-lg font-serif">Equalizer</h3>
+            <button onClick={() => setShowEQ(false)} className="text-zinc-400 hover:text-white">✕</button>
+          </div>
+          
+          <div className="flex justify-between mb-8 gap-2">
+            <button onClick={() => setEqPreset('flat')} className="px-3 py-1 rounded-full border border-white/10 text-xs hover:bg-white/10 transition-colors">Flat</button>
+            <button onClick={() => setEqPreset('bass')} className="px-3 py-1 rounded-full border border-white/10 text-xs hover:bg-white/10 transition-colors">Bass</button>
+            <button onClick={() => setEqPreset('vocal')} className="px-3 py-1 rounded-full border border-white/10 text-xs hover:bg-white/10 transition-colors">Vocal</button>
+            <button onClick={() => setEqPreset('acoustic')} className="px-3 py-1 rounded-full border border-white/10 text-xs hover:bg-white/10 transition-colors">Acoustic</button>
+          </div>
+
+          <div className="flex justify-between h-40">
+            {[60, 230, 910, 3600, 14000].map(freq => (
+              <div key={freq} className="flex flex-col items-center gap-3">
+                <div className="relative h-full flex items-center w-6">
+                  <div className="absolute inset-0 w-1 bg-white/5 mx-auto rounded-full"></div>
+                  <input
+                    type="range"
+                    min="-12"
+                    max="12"
+                    step="0.5"
+                    value={eqBands[freq] || 0}
+                    onChange={(e) => setEqBands(prev => ({...prev, [freq]: parseFloat(e.target.value)}))}
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-1 bg-transparent appearance-none cursor-pointer -rotate-90 origin-center [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg"
+                  />
+                </div>
+                <span className="text-[10px] text-zinc-500 font-medium">
+                  {freq >= 1000 ? `${(freq/1000).toFixed(1)}k` : freq}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+    </div>
   );
 }
