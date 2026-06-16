@@ -112,7 +112,7 @@ def update_profile():
     global HOME_CACHE
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip()
-    preferences = payload.get("preferences", {"languages": [], "vibes": []})
+    preferences = payload.get("preferences", {"languages": []})
     is_public = payload.get("is_public", None)
     if not username:
         return jsonify({"success": False, "message": "Username required"}), 400
@@ -166,7 +166,7 @@ def analyze_voice():
 
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], f"{uuid.uuid4().hex}.webm")
     audio_file.save(file_path)
-    print(f"Audio saved: {file_path}")
+    print("Audio saved securely.")
 
     try:
         detected_mood = voice_analyzer.analyze_file(file_path)

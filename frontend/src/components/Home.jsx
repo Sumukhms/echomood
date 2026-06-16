@@ -314,15 +314,15 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           <span>←</span> Back to Home
         </button>
 
-        <div className="flex flex-col md:flex-row items-end gap-8 mb-10 pb-10 border-b border-white/10">
-          <div className="w-28 h-28 sm:w-40 sm:h-40 md:w-52 md:h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
+        <div className="flex flex-col md:flex-row items-center md:items-end text-center md:text-left gap-6 sm:gap-8 mb-8 sm:mb-10 pb-8 sm:pb-10 border-b border-white/10">
+          <div className="w-48 h-48 sm:w-40 sm:h-40 md:w-52 md:h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
             {coverImage ? (
               <img src={coverImage} alt="playlist cover" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full" style={{ background: getVibeGradient('party') }} />
             )}
           </div>
-          <div>
+          <div className="flex flex-col items-center md:items-start w-full">
             <p className="text-xs uppercase tracking-widest text-white block mb-2 font-bold">{isAi ? 'AI Generated' : 'Playlist'}</p>
             <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-white tracking-tighter mb-4">{name}</h1>
             <p className="text-zinc-400 text-sm">{description}</p>
@@ -332,26 +332,49 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           </div>
         </div>
 
-        <div className="mb-10 flex gap-4 items-center flex-wrap">
+        <div className="mb-10 flex gap-3 sm:gap-4 items-center justify-center md:justify-start flex-wrap">
           <button 
             onClick={() => handlePlay(tracks[0], tracks)}
-            className="w-16 h-16 flex items-center justify-center rounded-full bg-gold-500 text-black hover:scale-105 transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_30px_rgba(234,179,8,0.5)]"
+            className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-full bg-gold-500 text-black hover:scale-105 transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_30px_rgba(234,179,8,0.5)] shrink-0"
           >
-            <span className="text-2xl ml-1">▶</span>
+            <span className="text-xl sm:text-2xl ml-1">▶</span>
           </button>
+          
+          <button
+            onClick={async () => {
+              const shareUrl = `${window.location.origin}/?play=${encodeURIComponent(tracks[0]?.track_name || name)}`;
+              if (navigator.share) {
+                try {
+                  await navigator.share({
+                    title: `Listen to ${name} on EchoMood`,
+                    text: `Check out this playlist I'm vibing to!`,
+                    url: shareUrl
+                  });
+                } catch (e) {}
+              } else {
+                navigator.clipboard.writeText(shareUrl);
+                alert("Playlist link copied!");
+              }
+            }}
+            className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all text-xs sm:text-sm font-medium tracking-wide border border-white/10 flex items-center gap-2"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
+            <span className="hidden sm:inline">Share</span>
+          </button>
+
           {isAi && (
             <>
               <button 
                 onClick={() => onPlayTrack(tracks[0], tracks, { isEndless: true, seedMood: activePlaylist.mood })}
                 disabled={isGeneratingRadio}
-                className="px-6 py-3 rounded-full bg-gold-500 text-black hover:bg-gold-400 hover:scale-105 transition-all font-medium tracking-wide shadow-[0_0_20px_rgba(234,179,8,0.2)] flex items-center gap-2"
+                className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-gold-500 text-black hover:bg-gold-400 hover:scale-105 transition-all text-xs sm:text-sm font-medium tracking-wide shadow-[0_0_20px_rgba(234,179,8,0.2)] flex items-center gap-2 shrink-0"
               >
                 <span>🎧</span> Start Endless DJ Session
               </button>
               <button 
                 onClick={handleSaveAiPlaylist}
                 disabled={isSaving}
-                className="px-6 py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all font-medium tracking-wide border border-white/10 disabled:opacity-50"
+                className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all text-xs sm:text-sm font-medium tracking-wide border border-white/10 disabled:opacity-50 shrink-0"
               >
                 {isSaving ? "Saving..." : "Save to Library"}
               </button>

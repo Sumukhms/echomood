@@ -7,16 +7,9 @@ const LANGUAGES = [
   'Spanish', 'French', 'Japanese', 'Korean', 'German', 'Italian',
   'Arabic', 'Portuguese', 'Bengali', 'Marathi', 'Gujarati', 'Urdu'
 ];
-const VIBES = [
-  'Bollywood', 'Indie', 'Lo-Fi', 'EDM', 'Acoustic', 'Classical', 'Hip-Hop',
-  'Romantic', 'Sad', 'Energetic', 'Old Classics', 'Devotional', 'Party', 'Focus',
-  'Pop', 'Rock', 'Jazz', 'Metal', 'Folk', 'Ambient', 'R&B', 'Soul',
-  'Reggaeton', 'K-Pop', 'Anime', 'Workout', 'Sleep', 'Study', 'Road Trip'
-];
 
 export default function Profile({ username, userProfile, onProfileUpdate, onLogout }) {
   const [selectedLanguages, setSelectedLanguages] = useState(userProfile?.languages || []);
-  const [selectedVibes, setSelectedVibes] = useState(userProfile?.vibes || []);
   const [isPublic, setIsPublic] = useState(userProfile?.is_public || false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
@@ -42,8 +35,8 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
     return parseFloat(localStorage.getItem(`echomood_rate_${username}`) || '1.0');
   });
 
-  const calculatePersona = (history, vibes) => {
-    const allTags = [...vibes.map(v => v.toLowerCase())];
+  const calculatePersona = (history) => {
+    const allTags = [];
     history.forEach(h => {
       if (h.mood) allTags.push(h.mood.toLowerCase());
     });
@@ -85,17 +78,17 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
         const res = await axios.get(`http://127.0.0.1:5000/api/mood/history?username=${username}`);
         if (res.data?.success && res.data.history) {
           setMoodHistory(res.data.history);
-          calculatePersona(res.data.history, selectedVibes);
+          calculatePersona(res.data.history);
         } else {
-          calculatePersona([], selectedVibes);
+          calculatePersona([]);
         }
       } catch (err) {
         console.error("Failed to fetch history in Profile", err);
-        calculatePersona([], selectedVibes);
+        calculatePersona([]);
       }
     };
     fetchHistory();
-  }, [username, selectedVibes]);
+  }, [username]);
 
   useEffect(() => {
     const fetchWrapped = async () => {
@@ -140,7 +133,7 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
     setIsSaving(true);
     setSaveMessage('');
     try {
-      const preferences = { languages: selectedLanguages, vibes: selectedVibes };
+      const preferences = { languages: selectedLanguages };
       await axios.post("http://127.0.0.1:5000/api/profile", {
         username,
         preferences,
@@ -301,26 +294,6 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
               }`}
             >
               {lang}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Vibes Section */}
-      <div className="w-full mb-12 text-left">
-        <h3 className="text-gold-500 uppercase tracking-widest text-xs font-semibold mb-4">Edit Baseline Vibes</h3>
-        <div className="flex flex-wrap gap-3">
-          {VIBES.map(vibe => (
-            <button
-              key={vibe}
-              onClick={() => toggleSelection(vibe, selectedVibes, setSelectedVibes)}
-              className={`px-5 py-2 rounded-full text-sm transition-all duration-300 border ${
-                selectedVibes.includes(vibe) 
-                  ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
-                  : 'bg-transparent border-white/20 text-zinc-300 hover:border-white/50'
-              }`}
-            >
-              {vibe}
             </button>
           ))}
         </div>

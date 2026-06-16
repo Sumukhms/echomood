@@ -5,15 +5,9 @@ const LANGUAGES = [
   'Hindi', 'English', 'Kannada', 'Tamil', 'Telugu', 'Malayalam', 'Punjabi', 
   'Spanish', 'French', 'Japanese', 'Korean', 'German', 'Italian'
 ];
-const VIBES = [
-  'Bollywood', 'Indie', 'Lo-Fi', 'EDM', 'Acoustic', 'Classical', 'Hip-Hop',
-  'Romantic', 'Sad', 'Energetic', 'Old Classics', 'Devotional', 'Party', 'Focus',
-  'Pop', 'Rock', 'Jazz', 'Metal', 'Folk', 'Ambient'
-];
 
 export default function Onboarding({ onComplete, username }) {
   const [selectedLanguages, setSelectedLanguages] = useState([]);
-  const [selectedVibes, setSelectedVibes] = useState([]);
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -34,7 +28,7 @@ export default function Onboarding({ onComplete, username }) {
     
     setIsSaving(true);
     try {
-      const preferences = { languages: selectedLanguages, vibes: selectedVibes };
+      const preferences = { languages: selectedLanguages };
       if (username) {
         await axios.post("http://127.0.0.1:5000/api/profile", {
           username,
@@ -45,7 +39,7 @@ export default function Onboarding({ onComplete, username }) {
     } catch (err) {
       console.error("Failed to save onboarding preferences", err);
       // still proceed so they aren't stuck
-      onComplete({ languages: selectedLanguages, vibes: selectedVibes });
+      onComplete({ languages: selectedLanguages });
     } finally {
       setIsSaving(false);
     }
@@ -71,26 +65,6 @@ export default function Onboarding({ onComplete, username }) {
               }`}
             >
               {lang}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Vibes Section */}
-      <div className="w-full mb-12 text-left">
-        <h3 className="text-gold-500 uppercase tracking-widest text-xs font-semibold mb-4">2. Baseline Vibes</h3>
-        <div className="flex flex-wrap gap-3">
-          {VIBES.map(vibe => (
-            <button
-              key={vibe}
-              onClick={() => toggleSelection(vibe, selectedVibes, setSelectedVibes)}
-              className={`px-5 py-2 rounded-full text-sm transition-all duration-300 border ${
-                selectedVibes.includes(vibe) 
-                  ? 'bg-white text-black border-white shadow-[0_0_15px_rgba(255,255,255,0.4)]' 
-                  : 'bg-transparent border-white/20 text-zinc-300 hover:border-white/50'
-              }`}
-            >
-              {vibe}
             </button>
           ))}
         </div>

@@ -984,12 +984,22 @@ export default function GlobalPlayer({
                 )}
               </div>
 
-              {/* Copy Deep Link */}
+              {/* Native OS Share Link */}
               <button
-                onClick={() => {
+                onClick={async () => {
                   const shareUrl = `${window.location.origin}/?play=${encodeURIComponent(currentTrack.track_name)}`;
-                  navigator.clipboard.writeText(shareUrl);
-                  // Optional: add a small visual toast here if we had one
+                  if (navigator.share) {
+                    try {
+                      await navigator.share({
+                        title: `Listen to ${currentTrack.track_name}`,
+                        text: `I'm listening to ${currentTrack.track_name} on EchoMood!`,
+                        url: shareUrl
+                      });
+                    } catch (e) {}
+                  } else {
+                    navigator.clipboard.writeText(shareUrl);
+                    alert("Song link copied to clipboard!");
+                  }
                 }}
                 className="p-2 rounded-full transition-all text-zinc-400 hover:text-white hover:bg-white/10"
                 title="Copy Song Link"
