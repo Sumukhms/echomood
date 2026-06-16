@@ -19,7 +19,7 @@ export default function VaultGallery({ username, onPlayTrack }) {
       try {
         setIsLoading(true);
         setError("");
-        const res = await axios.get("http://127.0.0.1:5000/api/vault/tracks", {
+        const res = await axios.get("https://sumukh25-echomood-api.hf.space/api/vault/tracks", {
           params: { username },
         });
         const fetched = res.data?.tracks ?? [];

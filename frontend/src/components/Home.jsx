@@ -35,7 +35,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
   const fetchVibeHistory = async () => {
     if (!currentUser?.username) return;
     try {
-      const res = await axios.get(`http://127.0.0.1:5000/api/mood/history?username=${currentUser.username}`);
+      const res = await axios.get(`https://sumukh25-echomood-api.hf.space/api/mood/history?username=${currentUser.username}`);
       if (res.data?.success) {
         setVibeHistory(res.data.history || []);
       }
@@ -92,7 +92,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         username: currentUser?.username,
         seed_mood: dominantMood
       };
-      const res = await axios.post("http://127.0.0.1:5000/api/radio/next", payload);
+      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/radio/next", payload);
       if (res.data?.success && res.data.tracks?.length > 0) {
         onPlayTrack(res.data.tracks[0], res.data.tracks, { isEndless: true, seedMood: dominantMood });
       }
@@ -110,7 +110,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         username: currentUser?.username,
         seed_mood: vibe
       };
-      const res = await axios.post("http://127.0.0.1:5000/api/radio/next", payload);
+      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/radio/next", payload);
       if (res.data?.success && res.data.tracks?.length > 0) {
         onPlayTrack(res.data.tracks[0], res.data.tracks, { isEndless: true, seedMood: vibe });
       }
@@ -130,7 +130,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         if (currentUser?.username) {
           params.username = currentUser.username;
         }
-        const response = await axios.get("http://127.0.0.1:5000/api/library/home", { params });
+        const response = await axios.get("https://sumukh25-echomood-api.hf.space/api/library/home", { params });
         setLibraryData(response.data?.library ?? {});
       } catch {
         setError("Unable to load the library right now. Is the server running?");
@@ -196,7 +196,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         ? activePlaylist.mood.toLowerCase() 
         : "calm";
         
-      await axios.post("http://127.0.0.1:5000/api/playlists/save_ai", {
+      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/save_ai", {
         username: currentUser.username,
         name: activePlaylist.name,
         tracks: activePlaylist.tracks,

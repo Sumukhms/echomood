@@ -24,7 +24,7 @@ export default function AuthScreen({ setAuth }) {
     setMessage("");
 
     try {
-      const response = await axios.post(`http://127.0.0.1:5000${endpoint}`, {
+      const response = await axios.post(`https://sumukh25-echomood-api.hf.space${endpoint}`, {
         username: username.trim(),
         password,
       });

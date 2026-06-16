@@ -5,10 +5,10 @@ import './index.css'
 import App from './App.jsx'
 
 // Set up Axios interceptor to dynamically rewrite the API base URL in production
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000';
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://sumukh25-echomood-api.hf.space';
 axios.interceptors.request.use((config) => {
-  if (config.url && config.url.startsWith('http://127.0.0.1:5000')) {
-    config.url = config.url.replace('http://127.0.0.1:5000', apiBaseUrl);
+  if (config.url && config.url.startsWith('https://sumukh25-echomood-api.hf.space')) {
+    config.url = config.url.replace('https://sumukh25-echomood-api.hf.space', apiBaseUrl);
   }
   return config;
 }, (error) => {

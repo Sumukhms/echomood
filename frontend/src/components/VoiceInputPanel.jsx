@@ -51,7 +51,7 @@ export default function VoiceInputPanel({ userProfile, username, onAnalyzeComple
           try {
             // Send it to our new Python endpoint!
             const response = await axios.post(
-              "http://127.0.0.1:5000/api/analyze/voice",
+              "https://sumukh25-echomood-api.hf.space/api/analyze/voice",
               formData,
               {
                 headers: { "Content-Type": "multipart/form-data" },
