@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 
-export default function TextInputPanel({ userProfile, onAnalyzeComplete }) {
+export default function TextInputPanel({ userProfile, username, onAnalyzeComplete }) {
   const [text, setText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusText, setStatusText] = useState('Type your mood or vibe and let AI DJ interpret it.');
@@ -20,12 +20,13 @@ export default function TextInputPanel({ userProfile, onAnalyzeComplete }) {
 
       const response = await axios.post('http://127.0.0.1:5000/api/analyze/text', {
         text: cleanText,
-        languages: userProfile?.languages || ['Hindi']
+        languages: userProfile?.languages || ['Hindi'],
+        username: username
       });
 
       setStatusText('Vibe detected.');
       if (onAnalyzeComplete) {
-        onAnalyzeComplete(response.data.detected_mood, response.data.tracks);
+        onAnalyzeComplete(response.data.detected_mood, response.data.tracks, response.data.explanation);
       }
     } catch (error) {
       console.error('Text analysis failed', error);

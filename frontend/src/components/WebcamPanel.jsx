@@ -21,7 +21,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([arrayBuffer], { type: mime });
 }
 
-export default function WebcamPanel({ userProfile, onAnalyzeComplete }) {
+export default function WebcamPanel({ userProfile, username, onAnalyzeComplete }) {
   const webcamRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
   const [statusText, setStatusText] = useState('Position your face and scan your vibe.');
@@ -41,6 +41,9 @@ export default function WebcamPanel({ userProfile, onAnalyzeComplete }) {
       const formData = new FormData();
       formData.append('image', imageBlob, 'face-scan.jpg');
       formData.append('languages', (userProfile?.languages || ['Hindi']).join(','));
+      if (username) {
+        formData.append('username', username);
+      }
 
       const response = await axios.post('http://127.0.0.1:5000/api/analyze/face', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -48,7 +51,7 @@ export default function WebcamPanel({ userProfile, onAnalyzeComplete }) {
 
       setStatusText('Vibe detected from camera.');
       if (onAnalyzeComplete) {
-        onAnalyzeComplete(response.data.detected_mood, response.data.tracks);
+        onAnalyzeComplete(response.data.detected_mood, response.data.tracks, response.data.explanation);
       }
     } catch (error) {
       console.error('Face analysis failed', error);

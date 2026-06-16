@@ -50,8 +50,13 @@ An AI-powered music recommendation system that generates personalized playlists 
 
 3.  **Setup Backend:**
     ```bash
-    cd ../backend
-    npm install
-    # Create a .env file and add your API keys (e.g., SPOTIFY_CLIENT_ID, MONGO_URI)
-    npm start
+    cd ../ai-models
+    python -m venv venv
+    source venv/Scripts/activate  # On Windows
+    pip install -r requirements.txt
+    # Create a .env file and add your MONGO_URI
+    python ai_server.py
     ```
+
+### Easy Start (Windows)
+Just run `start.bat` from the root directory to automatically start both the frontend and backend servers.

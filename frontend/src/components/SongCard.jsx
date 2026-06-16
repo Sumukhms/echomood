@@ -1,6 +1,22 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 
+const getVibeGradient = (mood) => {
+  switch (mood?.toLowerCase()) {
+    case "happy": return "linear-gradient(135deg, #ea580c 0%, #fcd34d 100%)";
+    case "sad": return "linear-gradient(135deg, #1e3a8a 0%, #60a5fa 100%)";
+    case "angry": return "linear-gradient(135deg, #7f1d1d 0%, #ef4444 100%)";
+    case "calm": return "linear-gradient(135deg, #064e3b 0%, #34d399 100%)";
+    case "energetic": return "linear-gradient(135deg, #be185d 0%, #f472b6 100%)";
+    case "romantic": return "linear-gradient(135deg, #9f1239 0%, #fb7185 100%)";
+    case "nostalgic": return "linear-gradient(135deg, #854d0e 0%, #fbbf24 100%)";
+    case "focused": return "linear-gradient(135deg, #4c1d95 0%, #a78bfa 100%)";
+    case "party": return "linear-gradient(135deg, #6d28d9 0%, #c084fc 100%)";
+    case "sleepy": return "linear-gradient(135deg, #0f172a 0%, #64748b 100%)";
+    default: return "linear-gradient(135deg, #52525b 0%, #09090b 100%)";
+  }
+};
+
 export default function SongCard({
   track,
   onPlay,
@@ -14,6 +30,7 @@ export default function SongCard({
   const [userPlaylists, setUserPlaylists] = useState([]);
   const [playlistsLoaded, setPlaylistsLoaded] = useState(false);
   const [addedToPlaylist, setAddedToPlaylist] = useState(null);
+  const [feedbackGiven, setFeedbackGiven] = useState(null);
   const dropdownRef = useRef(null);
 
   // Close dropdown on outside click
@@ -65,6 +82,22 @@ export default function SongCard({
     }
   };
 
+  const handleFeedback = async (action) => {
+    if (feedbackGiven || !username) return;
+    try {
+      await axios.post("http://127.0.0.1:5000/api/feedback", {
+        username,
+        track_name: track.track_name,
+        artist_name: track.artist_name,
+        mood: track.mood || "calm",
+        action: action
+      });
+      setFeedbackGiven(action);
+    } catch (err) {
+      console.error(`Failed to send feedback ${action}:`, err);
+    }
+  };
+
   const handleAddToPlaylist = async (playlistId, playlistName) => {
     try {
       await axios.post("http://127.0.0.1:5000/api/playlists/add_track", {
@@ -89,8 +122,8 @@ export default function SongCard({
   return (
     // overflow-visible so the dropdown is not clipped by the grid cell
     <div className="relative flex flex-col p-4 transition-all duration-500 border group bg-white/5 backdrop-blur-md border-white/10 rounded-2xl hover:bg-white/10 hover:-translate-y-1 hover:shadow-[0_10px_30px_rgba(212,175,55,0.15)] overflow-visible">
-      {/* YouTube iframe */}
-      <div className="relative w-full overflow-hidden aspect-video rounded-xl bg-zinc-900">
+      {/* Album Cover */}
+      <div className="relative w-full overflow-hidden aspect-square rounded-xl bg-zinc-900 flex items-center justify-center">
         {/* Save-to-vault heart button */}
         <button
           onClick={handleSaveTrack}
@@ -107,13 +140,18 @@ export default function SongCard({
           </span>
         </button>
 
-        <iframe
-          src={track.preview_url || track.file_url}
-          title={track.track_name}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          className="absolute inset-0 w-full h-full border-0"
-        />
+        {track.cover_url ? (
+          <img
+            src={track.cover_url}
+            alt={track.track_name}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div 
+            className="absolute inset-0 w-full h-full opacity-80" 
+            style={{ background: getVibeGradient(track.mood || (track.mood_tags ? track.mood_tags[0] : null)) }}
+          />
+        )}
       </div>
 
       {/* Track info */}
@@ -140,6 +178,32 @@ export default function SongCard({
         >
           Play
         </button>
+
+        {/* Feedback Buttons */}
+        <div className="flex gap-2 mt-2">
+          <button
+            onClick={() => handleFeedback('like')}
+            disabled={!!feedbackGiven}
+            className={`flex-1 py-1.5 text-xs tracking-widest uppercase rounded-xl border transition-all ${
+              feedbackGiven === 'like'
+                ? "border-green-500/50 text-green-400 bg-green-500/10"
+                : "border-white/15 text-zinc-400 hover:border-green-500/50 hover:text-green-400 hover:bg-green-500/10"
+            }`}
+          >
+            👍 {feedbackGiven === 'like' ? 'Liked' : 'Like'}
+          </button>
+          <button
+            onClick={() => handleFeedback('skip')}
+            disabled={!!feedbackGiven}
+            className={`flex-1 py-1.5 text-xs tracking-widest uppercase rounded-xl border transition-all ${
+              feedbackGiven === 'skip'
+                ? "border-red-500/50 text-red-400 bg-red-500/10"
+                : "border-white/15 text-zinc-400 hover:border-red-500/50 hover:text-red-400 hover:bg-red-500/10"
+            }`}
+          >
+            👎 {feedbackGiven === 'skip' ? 'Skipped' : 'Skip'}
+          </button>
+        </div>
 
         {/* Add to playlist — dropdown is portalled above grid via z-[999] */}
         <div className="relative mt-2" ref={dropdownRef}>
