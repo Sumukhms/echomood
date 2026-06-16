@@ -2,9 +2,12 @@ name: EchoMood CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, sumukh ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, sumukh ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   frontend-check:
