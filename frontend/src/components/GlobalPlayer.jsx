@@ -615,6 +615,7 @@ export default function GlobalPlayer({
       {/* Hidden audio element — only used for local mp3 tracks */}
       <audio
         ref={audioRef}
+        crossOrigin="anonymous"
         src={!isExternal && resolvedUrl ? resolvedUrl : undefined}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
         onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime || 0)}

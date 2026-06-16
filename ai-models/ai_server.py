@@ -662,8 +662,9 @@ def get_youtube_url():
             return jsonify({"success": True, "youtube_url": watch_url, "video_id": video_id})
     except Exception as e:
         print(f"Error scraping YouTube for '{query}': {e}")
+        return jsonify({"success": False, "error": f"Scraping error: {str(e)}"}), 200
         
-    return jsonify({"success": False, "error": "Could not find video"}), 500
+    return jsonify({"success": False, "error": "Could not find video"}), 200
 
 
 # ── lyrics ────────────────────────────────────────────────────────────────────
