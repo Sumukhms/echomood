@@ -1,62 +1,76 @@
-# 🚀 EchoMood
+# 🎵 EchoMood
 
-An AI-powered music recommendation system that generates personalized playlists based on your real-time mood, detected via facial expression, text, or voice.
+EchoMood is an advanced, AI-powered music streaming and discovery platform. It goes beyond simple playlists by utilizing semantic multi-modal analysis (Voice, Text, and Facial emotion) to actively curate the perfect listening experience for your current mood. 
 
-***
+Built with a stunning, mobile-first glassmorphism design, EchoMood rivals premium streaming platforms by offering deeply interactive features like collaborative party queues, DJ crossfading, and a professional audio equalizer.
 
-## ✨ Core Features
+---
 
--   **Multi-Modal Mood Detection:** Analyzes user input from three different sources:
-    -   📸 **Facial Emotion Recognition (FER):** Detects mood from a live webcam feed.
-    -   ✍️ **Text Sentiment Analysis:** Infers emotion from user-written text.
-    -   🎤 **Voice Emotion Recognition (SER):** Determines emotional tone from microphone input.
--   **Real-Time Playlist Generation:** Connects with the Spotify API to curate a unique playlist that either matches or aims to improve the user's detected emotional state.
--   **Adaptive Recommendations:** (Future goal) Learns from user feedback (likes/skips) to fine-tune future suggestions.
--   **Mood-Themed UI:** (Future goal) The user interface dynamically changes its color scheme and aesthetic to reflect the current mood.
+## ✨ Premium Features
+
+*   **Intelligent Audio Engine:** 
+    *   **5-Band EQ:** A built-in, fully interactive equalizer with presets (Bass Boost, Acoustic, Vocal, Flat).
+    *   **Mood Mixer:** Seamless, gapless crossfading between tracks to keep the vibe uninterrupted.
+*   **The AI DJ:** 
+    *   **Multi-Modal Detection:** Analyzes your mood via WebCam (Facial Expression), Microphone (Semantic Voice Tone), or Text input.
+    *   **Generative AI Voice:** A completely custom AI DJ that speaks to you, introduces tracks, and curates dynamic "Smart Radio" sessions.
+*   **Social & Collaborative:** 
+    *   **Party Mode:** Host live, synchronized listening sessions. Guests can join via a unique code, add songs to a collaborative queue, and upvote their favorite tracks.
+    *   **Deep-Link Sharing:** Share native links to custom tracks or playlists directly to mobile apps like WhatsApp and Instagram using native OS sharing protocols.
+*   **EchoWrapped:** 
+    *   An interactive, highly animated "Year in Review" slideshow that highlights your top moods, listening minutes, and favorite tracks. (Unlocks automatically during Wrap season!).
+*   **PWA Ready:** 
+    *   Fully installable as a Progressive Web App (PWA) on iOS and Android for a seamless native app experience.
 
 ## 🛠️ Tech Stack
 
-| Category      | Technology                                                              |
-|---------------|-------------------------------------------------------------------------|
-| **Frontend** | React, Vite, Tailwind CSS                                               |
-| **Backend** | Node.js, Express.js                                                     |
-| **Database** | MongoDB (with Mongoose), MongoDB Atlas                                  |
-| **AI / ML** | Python (Flask/FastAPI), TensorFlow/Keras, Hugging Face, OpenCV, Librosa |
-| **Deployment**| Vercel (Frontend), Render (Backend), MongoDB Atlas (Database)           |
+EchoMood was built from the ground up for speed, aesthetics, and scalable AI integration.
 
+| Category      | Technology |
+|---------------|------------|
+| **Frontend** | React, Vite, Tailwind CSS, Web Audio API |
+| **Backend** | Python (Flask), Werkzeug |
+| **Database** | MongoDB (with PyMongo) |
+| **AI / Audio** | TensorFlow, Keras, OpenCV, librosa, SpeechRecognition, gTTS |
 
-## ⚙️ Getting Started
+## 🚀 Getting Started
 
 ### Prerequisites
 
--   Node.js & npm
--   Python & pip
--   A Spotify Developer account for API keys.
+*   Node.js (v18+)
+*   Python 3.10+
 
 ### Local Setup
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/YOUR_USERNAME/EchoMood.git](https://github.com/YOUR_USERNAME/EchoMood.git)
-    cd EchoMood
+    git clone https://github.com/spatikavarshini/echomood.git
+    cd echomood
     ```
 
-2.  **Setup Frontend:**
+2.  **Setup the AI Backend:**
+    ```bash
+    cd ai-models
+    python -m venv venv
+    
+    # On Windows:
+    venv\Scripts\activate
+    # On Mac/Linux:
+    # source venv/bin/activate
+    
+    pip install -r requirements.txt
+    python ai_server.py
+    ```
+    *The backend runs on `http://127.0.0.1:5000`.*
+
+3.  **Setup the React Frontend (in a new terminal):**
     ```bash
     cd frontend
     npm install
     npm run dev
     ```
+    *The frontend runs on `http://localhost:5173`.*
 
-3.  **Setup Backend:**
-    ```bash
-    cd ../ai-models
-    python -m venv venv
-    source venv/Scripts/activate  # On Windows
-    pip install -r requirements.txt
-    # Create a .env file and add your MONGO_URI
-    python ai_server.py
-    ```
+---
 
-### Easy Start (Windows)
-Just run `start.bat` from the root directory to automatically start both the frontend and backend servers.
+*Designed and developed as a next-generation auditory experience.*
