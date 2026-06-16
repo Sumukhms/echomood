@@ -1,6 +1,6 @@
 ---
 title: EchoMood API
-emoji: ??
+emoji: 🎵
 colorFrom: blue
 colorTo: purple
 sdk: docker
