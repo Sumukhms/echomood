@@ -116,3 +116,4 @@ SpeechRecognition==3.16.1
 pymongo==4.17.0
 dnspython==2.8.0
 pydub==0.25.1
+pycryptodome==3.23.0

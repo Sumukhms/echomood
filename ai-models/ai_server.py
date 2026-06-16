@@ -724,55 +724,42 @@ def get_youtube_url():
     if not query:
         return jsonify({"success": False, "error": "Query required"}), 400
         
-    # Check for official YouTube API Key in environment
-    api_key = os.getenv("YOUTUBE_API_KEY")
-    if api_key:
-        try:
-            import urllib.parse
-            # Clean and encode query
-            strict_query = query + " official audio"
-            encoded_query = urllib.parse.quote(strict_query)
-            url = f"https://www.googleapis.com/youtube/v3/search?part=id&q={encoded_query}&type=video&maxResults=1&key={api_key}"
-            
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                items = data.get("items", [])
-                if items:
-                    video_id = items[0].get("id", {}).get("videoId")
-                    if video_id:
-                        watch_url = f"https://www.youtube.com/watch?v={video_id}"
-                        return jsonify({"success": True, "youtube_url": watch_url, "video_id": video_id})
-        except Exception as e:
-            print(f"Error calling YouTube API: {e}")
-            # Fallback to scraping if API fails (e.g. quota limit exceeded)
-            
-    # Fallback: Scrape YouTube (works locally, might fail in cloud due to blocks)
     try:
-        import urllib.request
         import urllib.parse
-        import re
+        import base64
+        from Crypto.Cipher import DES
+
+        def decrypt_url(url):
+            des_cipher = DES.new(b"38346591", DES.MODE_ECB)
+            enc_url = base64.b64decode(url.strip())
+            dec_url = des_cipher.decrypt(enc_url).decode('utf-8')
+            pad = ord(dec_url[-1])
+            dec_url = dec_url[:-pad]
+            return dec_url.replace("_96.mp4", "_320.mp4")
+
+        # Clean query by removing 'official audio' if the frontend appended it
+        clean_query = query.replace(" official audio", "")
+        search_url = f"https://www.jiosaavn.com/api.php?__call=search.getResults&q={urllib.parse.quote(clean_query)}&n=1&p=1&_format=json&_marker=0&ctx=web6dot0"
+        search_res = requests.get(search_url, timeout=5)
+        search_data = search_res.json()
+        results = search_data.get("results", [])
         
-        strict_query = query + " official audio -full -album -mix -hour"
-        search_query = urllib.parse.quote(strict_query)
-        url = f"https://www.youtube.com/results?search_query={search_query}"
-        req = urllib.request.Request(
-            url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'}
-        )
-        with urllib.request.urlopen(req, timeout=5) as response:
-            html = response.read().decode('utf-8')
+        if results:
+            pids = ",".join([item["id"] for item in results if "id" in item])
+            details_url = f"https://www.jiosaavn.com/api.php?__call=song.getDetails&pids={pids}&_format=json&_marker=0&ctx=web6dot0"
+            details_res = requests.get(details_url, timeout=5)
+            details_data = details_res.json()
             
-        video_ids = re.findall(r"watch\?v=(\S{11})", html)
-        if video_ids:
-            video_id = video_ids[0]
-            watch_url = f"https://www.youtube.com/watch?v={video_id}"
-            return jsonify({"success": True, "youtube_url": watch_url, "video_id": video_id})
+            for song in details_data.get("songs", []):
+                encrypted = song.get("encrypted_media_url")
+                if encrypted:
+                    decrypted_link = decrypt_url(encrypted)
+                    return jsonify({"success": True, "youtube_url": decrypted_link, "video_id": song.get("id")})
+                    
     except Exception as e:
-        print(f"Error scraping YouTube for '{query}': {e}")
-        return jsonify({"success": False, "error": f"Scraping error: {str(e)}"}), 200
+        print(f"Error fetching full audio from JioSaavn for '{query}': {e}")
         
-    return jsonify({"success": False, "error": "Could not find video"}), 200
+    return jsonify({"success": False, "error": "Could not extract full audio"}), 200
 
 
 # ── lyrics ────────────────────────────────────────────────────────────────────
