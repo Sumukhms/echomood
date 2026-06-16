@@ -21,8 +21,8 @@ export default function Library({ currentUser, onPlayTrack }) {
     setIsLoading(true);
     try {
       const [favRes, plRes] = await Promise.all([
-        axios.get(`http://127.0.0.1:5000/api/favorites/all?username=${currentUser.username}&_t=${Date.now()}`),
-        axios.get(`http://127.0.0.1:5000/api/playlists/all?username=${currentUser.username}&_t=${Date.now()}`)
+        axios.get(`https://sumukh25-echomood-api.hf.space/api/favorites/all?username=${currentUser.username}&_t=${Date.now()}`),
+        axios.get(`https://sumukh25-echomood-api.hf.space/api/playlists/all?username=${currentUser.username}&_t=${Date.now()}`)
       ]);
       if (favRes.data?.success) setFavorites(favRes.data.favorites);
       setPlaylists(plRes.data || []);
@@ -44,7 +44,7 @@ export default function Library({ currentUser, onPlayTrack }) {
     if (!newPlaylistName.trim()) return;
     setIsCreating(true);
     try {
-      await axios.post("http://127.0.0.1:5000/api/playlists/create", {
+      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/create", {
         username: currentUser.username,
         name: newPlaylistName
       });
@@ -60,7 +60,7 @@ export default function Library({ currentUser, onPlayTrack }) {
   const handleDeletePlaylist = async (playlistId) => {
     if (!window.confirm("Are you sure you want to delete this playlist?")) return;
     try {
-      await axios.post("http://127.0.0.1:5000/api/playlists/delete", { playlist_id: playlistId });
+      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/delete", { playlist_id: playlistId });
       setActivePlaylist(null);
       fetchLibraryData();
       window.dispatchEvent(new Event('libraryUpdate'));
@@ -71,7 +71,7 @@ export default function Library({ currentUser, onPlayTrack }) {
 
   const handleTogglePin = async (playlistId) => {
     try {
-      const res = await axios.post("http://127.0.0.1:5000/api/playlists/toggle_pin", { playlist_id: playlistId });
+      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/toggle_pin", { playlist_id: playlistId });
       if (res.data?.success) {
         setActivePlaylist(prev => prev ? { ...prev, is_pinned: res.data.is_pinned } : null);
         fetchLibraryData();
@@ -92,7 +92,7 @@ export default function Library({ currentUser, onPlayTrack }) {
       return;
     }
     try {
-      await axios.post("http://127.0.0.1:5000/api/playlists/update_name", {
+      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/update_name", {
         playlist_id: activePlaylist._id,
         name: editedName.trim()
       });
@@ -124,7 +124,7 @@ export default function Library({ currentUser, onPlayTrack }) {
 
     // Persist to backend
     try {
-      await axios.post("http://127.0.0.1:5000/api/playlists/reorder", {
+      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/reorder", {
         playlist_id: activePlaylist._id,
         tracks: tracksCopy
       });
@@ -156,7 +156,7 @@ export default function Library({ currentUser, onPlayTrack }) {
         seed_mood: dominantMood
       };
       
-      const res = await axios.post("http://127.0.0.1:5000/api/radio/next", payload);
+      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/radio/next", payload);
       if (res.data?.success && res.data.tracks?.length > 0) {
         // Create an ephemeral radio playlist and play the first track
         const radioTracks = res.data.tracks;
@@ -351,7 +351,7 @@ export default function Library({ currentUser, onPlayTrack }) {
                         e.stopPropagation();
                         if (window.confirm("Remove this song from the playlist?")) {
                           try {
-                            await axios.post("http://127.0.0.1:5000/api/playlists/remove_track", {
+                            await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/remove_track", {
                               playlist_id: _id,
                               file_url: track.file_url
                             });

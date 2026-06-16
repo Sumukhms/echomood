@@ -18,7 +18,7 @@ export default function TextInputPanel({ userProfile, username, onAnalyzeComplet
       setIsSubmitting(true);
       setStatusText('Analyzing text resonance...');
 
-      const response = await axios.post('http://127.0.0.1:5000/api/analyze/text', {
+      const response = await axios.post('https://sumukh25-echomood-api.hf.space/api/analyze/text', {
         text: cleanText,
         languages: userProfile?.languages || ['Hindi'],
         username: username

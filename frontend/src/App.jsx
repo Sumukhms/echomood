@@ -101,7 +101,7 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser?.username) {
-      axios.get(`http://127.0.0.1:5000/api/profile?username=${currentUser.username}`)
+      axios.get(`https://sumukh25-echomood-api.hf.space/api/profile?username=${currentUser.username}`)
         .then(res => {
           const prefs = res.data.preferences;
           if (prefs && prefs.languages && prefs.languages.length > 0) {
@@ -119,7 +119,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const playQuery = params.get("play");
     if (playQuery && currentUser?.username) {
-      axios.get(`http://127.0.0.1:5000/api/library/search?q=${encodeURIComponent(playQuery)}&username=${currentUser.username}`)
+      axios.get(`https://sumukh25-echomood-api.hf.space/api/library/search?q=${encodeURIComponent(playQuery)}&username=${currentUser.username}`)
         .then(res => {
           if (res.data.success && res.data.tracks && res.data.tracks.length > 0) {
             setQueue([res.data.tracks[0]]);
@@ -158,7 +158,7 @@ export default function App() {
     
     // Collaborative Party Queue: Forward track to host's queue
     if (partyCode && !isPartyHost) {
-      axios.post("http://127.0.0.1:5000/api/party/add", {
+      axios.post("https://sumukh25-echomood-api.hf.space/api/party/add", {
         code: partyCode,
         track: normaliseTrack(trackList[startIndex])
       }).then(() => {
@@ -193,7 +193,7 @@ export default function App() {
       const currentTrack = queue[currentTrackIndex];
       const currentMood = sessionMood || currentTrack?.mood || (currentTrack?.mood_tags ? currentTrack.mood_tags[0] : "calm");
       try {
-        const res = await axios.post("http://127.0.0.1:5000/api/radio/next", {
+        const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/radio/next", {
           username: currentUser?.username,
           seed_mood: currentMood,
           seed_source: currentTrack?.source || ""
@@ -281,7 +281,7 @@ export default function App() {
           <div className="flex flex-col gap-6">
             <button
               onClick={async () => {
-                const res = await axios.post("http://127.0.0.1:5000/api/party/create", { username: currentUser.username });
+                const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/party/create", { username: currentUser.username });
                 if (res.data?.success) {
                   setPartyCode(res.data.code);
                   setIsPartyHost(true);
@@ -311,7 +311,7 @@ export default function App() {
               <button
                 onClick={async () => {
                   if (partyInput.length !== 4) return;
-                  const res = await axios.post("http://127.0.0.1:5000/api/party/join", { username: currentUser.username, code: partyInput });
+                  const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/party/join", { username: currentUser.username, code: partyInput });
                   if (res.data?.success) {
                     setPartyCode(partyInput);
                     setIsPartyHost(false);

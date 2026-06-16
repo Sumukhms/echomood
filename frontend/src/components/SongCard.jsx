@@ -52,7 +52,7 @@ export default function SongCard({
     if (next && !playlistsLoaded && username) {
       try {
         const res = await axios.get(
-          `http://127.0.0.1:5000/api/playlists/all?username=${username}`
+          `https://sumukh25-echomood-api.hf.space/api/playlists/all?username=${username}`
         );
         setUserPlaylists(Array.isArray(res.data) ? res.data : []);
       } catch {
@@ -67,7 +67,7 @@ export default function SongCard({
     if (isSaved || isSaving || !username) return;
     try {
       setIsSaving(true);
-      await axios.post("http://127.0.0.1:5000/api/vault/save_track", {
+      await axios.post("https://sumukh25-echomood-api.hf.space/api/vault/save_track", {
         username,
         track_name: track.track_name,
         artist_name: track.artist_name,
@@ -85,7 +85,7 @@ export default function SongCard({
   const handleFeedback = async (action) => {
     if (feedbackGiven || !username) return;
     try {
-      await axios.post("http://127.0.0.1:5000/api/feedback", {
+      await axios.post("https://sumukh25-echomood-api.hf.space/api/feedback", {
         username,
         track_name: track.track_name,
         artist_name: track.artist_name,
@@ -100,7 +100,7 @@ export default function SongCard({
 
   const handleAddToPlaylist = async (playlistId, playlistName) => {
     try {
-      await axios.post("http://127.0.0.1:5000/api/playlists/add_track", {
+      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/add_track", {
         playlist_id: playlistId,
         track: {
           track_name: track.track_name,
