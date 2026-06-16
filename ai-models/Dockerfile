@@ -11,7 +11,7 @@ WORKDIR /app
 RUN apt-get update --allow-releaseinfo-change -y || true
 RUN apt-get install -y --no-install-recommends --fix-missing \
     ffmpeg \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     build-essential \
     && apt-get clean \
