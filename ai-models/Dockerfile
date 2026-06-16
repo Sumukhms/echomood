@@ -8,7 +8,8 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Install system dependencies needed for OpenCV, librosa, and ffmpeg
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update --allow-releaseinfo-change -y || true
+RUN apt-get install -y --no-install-recommends --fix-missing \
     ffmpeg \
     libgl1-mesa-glx \
     libglib2.0-0 \
