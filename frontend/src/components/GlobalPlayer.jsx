@@ -91,7 +91,7 @@ export default function GlobalPlayer({
   }, []);
 
 
-  const trackUrl = currentTrack?.file_url || "";
+  const trackUrl = currentTrack?.file_url || currentTrack?.preview_url || "";
   const isExternal = isYouTube(resolvedUrl);
 
   const ytPlayerRef = useRef(null);
