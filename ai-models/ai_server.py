@@ -499,8 +499,8 @@ def get_library_home():
     vibes = []
     if username:
         profile = db_manager.get_user_profile(username)
-        languages = profile.get("languages") or []
-        vibes = profile.get("vibes") or []
+        languages = profile.get("preferences", {}).get("languages") or []
+        vibes = profile.get("preferences", {}).get("vibes") or []
         
     if not languages:
         languages = ["English", "Hindi"]
