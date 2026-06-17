@@ -225,29 +225,39 @@ export default function GlobalPlayer({
     }
   }, [currentTime, duration, volume, isMuted, isPlaying, isExternal]);
 
+  // Refs for polling to avoid rapid interval resets
+  const pollDataRef = useRef({
+    isPartyHost, username, currentTrack, isPlaying, currentTime, isExternal
+  });
+
+  useEffect(() => {
+    pollDataRef.current = { isPartyHost, username, currentTrack, isPlaying, currentTime, isExternal };
+  }, [isPartyHost, username, currentTrack, isPlaying, currentTime, isExternal]);
+
   // Party Mode Polling
   useEffect(() => {
     let interval;
     if (partyCode) {
       interval = setInterval(async () => {
+        const d = pollDataRef.current;
         try {
-          const payload = { code: partyCode, username };
-          if (isPartyHost) {
-            payload.current_track = currentTrack;
-            payload.is_playing = isPlaying;
-            payload.current_time = currentTime;
+          const payload = { code: partyCode, username: d.username };
+          if (d.isPartyHost) {
+            payload.current_track = d.currentTrack;
+            payload.is_playing = d.isPlaying;
+            payload.current_time = d.currentTime;
           }
           const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/party/sync", payload);
           if (res.data?.success) {
             const state = res.data.session;
             if (state.queue) setPartyQueue(state.queue);
             if (state.guests && setPartyGuests) setPartyGuests(state.guests);
-            if (!isPartyHost) {
+            if (!d.isPartyHost) {
               if (state.current_track) setPartyTrack(state.current_track);
-              if (state.is_playing !== isPlaying) setIsPlaying(state.is_playing);
-              if (Math.abs(currentTime - state.current_time) > 3) {
+              if (state.is_playing !== d.isPlaying) setIsPlaying(state.is_playing);
+              if (Math.abs(d.currentTime - state.current_time) > 3) {
                 setCurrentTime(state.current_time);
-                if (isExternal && ytPlayerRef.current?.seekTo) {
+                if (d.isExternal && ytPlayerRef.current?.seekTo) {
                   ytPlayerRef.current.seekTo(state.current_time, true);
                 } else if (audioRef.current) {
                   audioRef.current.currentTime = state.current_time;
@@ -261,7 +271,7 @@ export default function GlobalPlayer({
       }, 2000);
     }
     return () => clearInterval(interval);
-  }, [partyCode, isPartyHost, currentTrack, isPlaying, currentTime, username, isExternal]);
+  }, [partyCode]);
 
   // YouTube IFrame API Integration
   useEffect(() => {
