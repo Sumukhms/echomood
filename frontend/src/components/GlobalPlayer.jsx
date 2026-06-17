@@ -755,7 +755,7 @@ export default function GlobalPlayer({
           const newTime = e.currentTarget.currentTime || 0;
           setCurrentTime(newTime);
           const dur = e.currentTarget.duration;
-          if (dur > 10 && dur - newTime < 2 && !partyCode) {
+          if (dur > 10 && dur - newTime < 2) {
             // Gapless playback simulation
             if (currentTrackIndex < queue.length - 1 || repeatMode !== 0 || isEndlessSession) {
               const evt = new Event('ended');
@@ -829,7 +829,7 @@ export default function GlobalPlayer({
                 step={1}
                 value={Math.min(currentTime, duration || 0)}
                 onChange={handleSeek}
-                disabled={!currentTrack || (audioError && !isExternal) || (partyCode && !isPartyHost)}
+                disabled={!currentTrack || (audioError && !isExternal)}
                 className="flex-1 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-gold-500"
               />
               <span className="text-xs text-zinc-400 w-10">{formatTime(duration)}</span>
@@ -847,7 +847,7 @@ export default function GlobalPlayer({
 
               <button
                 onClick={playPrevious}
-                disabled={!canSkipBack || (partyCode && !isPartyHost)}
+                disabled={!canSkipBack}
                 className="p-2 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
               >
                 <svg className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
@@ -855,7 +855,7 @@ export default function GlobalPlayer({
 
               <button
                 onClick={togglePlayback}
-                disabled={!currentTrack || isLoadingYoutube || (!isExternal && audioError) || (partyCode && !isPartyHost)}
+                disabled={!currentTrack || isLoadingYoutube || (!isExternal && audioError)}
                 className="w-16 h-16 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 disabled:opacity-30 disabled:hover:scale-100 transition-all shadow-lg"
               >
                 {isPlaying ? (
@@ -867,7 +867,7 @@ export default function GlobalPlayer({
 
               <button
                 onClick={playNext}
-                disabled={!canSkipForward || (partyCode && !isPartyHost)}
+                disabled={!canSkipForward}
                 className="p-2 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
               >
                 <svg className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
@@ -1053,7 +1053,7 @@ export default function GlobalPlayer({
                 </button>
                 <button
                   onClick={playNext}
-                  disabled={!canSkipForward || (partyCode && !isPartyHost)}
+                  disabled={!canSkipForward}
                   className="p-1 text-zinc-400 hover:text-white"
                 >
                   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
@@ -1105,7 +1105,7 @@ export default function GlobalPlayer({
 
                   <button
                     onClick={playPrevious}
-                    disabled={!canSkipBack || (partyCode && !isPartyHost)}
+                    disabled={!canSkipBack}
                     className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
                   >
                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
@@ -1113,7 +1113,7 @@ export default function GlobalPlayer({
 
                   <button
                     onClick={togglePlayback}
-                    disabled={!currentTrack || isLoadingYoutube || (!isExternal && audioError) || (partyCode && !isPartyHost)}
+                    disabled={!currentTrack || isLoadingYoutube || (!isExternal && audioError)}
                     className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 disabled:opacity-30 disabled:hover:scale-100 transition-all"
                   >
                     {isPlaying ? (
@@ -1125,7 +1125,7 @@ export default function GlobalPlayer({
 
                   <button
                     onClick={playNext}
-                    disabled={!canSkipForward || (partyCode && !isPartyHost)}
+                    disabled={!canSkipForward}
                     className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
                   >
                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
@@ -1154,7 +1154,7 @@ export default function GlobalPlayer({
                     step={1}
                     value={Math.min(currentTime, duration || 0)}
                     onChange={handleSeek}
-                    disabled={!currentTrack || (audioError && !isExternal) || (partyCode && !isPartyHost)}
+                    disabled={!currentTrack || (audioError && !isExternal)}
                     className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-gold-500"
                   />
                   <span className="text-[10px] text-zinc-500 w-8 shrink-0">{formatTime(duration)}</span>
@@ -1268,28 +1268,24 @@ export default function GlobalPlayer({
       {showQueue && (
         <div className="absolute bottom-24 right-4 md:right-8 w-80 max-w-[calc(100vw-2rem)] max-h-[60vh] overflow-y-auto bg-zinc-950/95 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl p-4 z-50 animate-fade-in custom-scrollbar">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
-            <h3 className="text-white font-bold text-lg font-serif">
-              {partyCode ? "Party Queue 🎉" : "Up Next"}
-            </h3>
+            <h3 className="text-white font-bold text-lg font-serif">Up Next</h3>
             <button onClick={() => setShowQueue(false)} className="text-zinc-400 hover:text-white">✕</button>
           </div>
           <div className="flex flex-col gap-2">
-            {(partyCode ? partyQueue : queue).map((track, idx) => {
-              const isPlaying = !partyCode && idx === currentTrackIndex;
+            {queue.map((track, idx) => {
+              const isActive = idx === currentTrackIndex;
               return (
                 <div 
                   key={idx}
-                  onClick={() => !partyCode && playTrackAtIndex && playTrackAtIndex(idx)}
-                  className={`flex items-center justify-between p-2 rounded-xl group transition-colors ${
-                    !partyCode ? 'cursor-pointer' : ''
-                  } ${
-                    isPlaying ? 'bg-gold-500/10 border border-gold-500/30' : 'hover:bg-white/5 border border-transparent'
+                  onClick={() => playTrackAtIndex && playTrackAtIndex(idx)}
+                  className={`flex items-center justify-between p-2 rounded-xl group transition-colors cursor-pointer ${
+                    isActive ? 'bg-gold-500/10 border border-gold-500/30' : 'hover:bg-white/5 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="relative w-10 h-10 rounded-md overflow-hidden shrink-0">
                       <img src={track.cover_url || '/covers/calm.png'} className="w-full h-full object-cover" />
-                      {isPlaying && (
+                      {isActive && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                           <div className="flex gap-0.5 items-end h-3">
                             <div className="w-0.5 bg-gold-400 h-1 animate-[bounce_1s_infinite]"></div>
@@ -1300,30 +1296,20 @@ export default function GlobalPlayer({
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className={`truncate text-sm font-medium ${isPlaying ? 'text-gold-400' : 'text-white'}`}>
+                      <p className={`truncate text-sm font-medium ${isActive ? 'text-gold-400' : 'text-white'}`}>
                         {track.track_name}
                       </p>
                       <p className="truncate text-xs text-zinc-400">{track.artist_name}</p>
                     </div>
                   </div>
                   
-                  {partyCode ? (
+                  {!isActive && removeFromQueue && (
                     <button 
-                      onClick={(e) => { e.stopPropagation(); handleUpvote(idx); }}
-                      className="p-2 text-zinc-400 hover:text-gold-400 transition-all shrink-0 flex items-center gap-1 bg-white/5 rounded-lg"
+                      onClick={(e) => { e.stopPropagation(); removeFromQueue(idx); }}
+                      className="opacity-0 group-hover:opacity-100 p-2 text-zinc-500 hover:text-red-400 transition-all shrink-0"
                     >
-                      <span className="text-xs font-bold">{track.upvotes || 0}</span>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                      ✕
                     </button>
-                  ) : (
-                    !isPlaying && removeFromQueue && (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); removeFromQueue(idx); }}
-                        className="opacity-0 group-hover:opacity-100 p-2 text-zinc-500 hover:text-red-400 transition-all shrink-0"
-                      >
-                        ✕
-                      </button>
-                    )
                   )}
                 </div>
               );
