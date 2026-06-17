@@ -29,7 +29,8 @@ export default function GlobalPlayer({
   repeatMode,
   setRepeatMode,
   playTrackAtIndex,
-  removeFromQueue
+  removeFromQueue,
+  setPartyGuests
 }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -240,6 +241,7 @@ export default function GlobalPlayer({
           if (res.data?.success) {
             const state = res.data.session;
             if (state.queue) setPartyQueue(state.queue);
+            if (state.guests && setPartyGuests) setPartyGuests(state.guests);
             if (!isPartyHost) {
               if (state.current_track) setPartyTrack(state.current_track);
               if (state.is_playing !== isPlaying) setIsPlaying(state.is_playing);

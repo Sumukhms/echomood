@@ -566,6 +566,7 @@ export default function App() {
         setRepeatMode={setRepeatMode}
         playTrackAtIndex={playTrackAtIndex}
         removeFromQueue={removeFromQueue}
+        setPartyGuests={setPartyGuests}
       />
     </div>
   );
