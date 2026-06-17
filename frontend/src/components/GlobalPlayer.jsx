@@ -815,7 +815,7 @@ export default function GlobalPlayer({
                   type="range" min="-12" max="12" value={eqBands[freq] || 0}
                   onChange={(e) => setEqBands(prev => ({...prev, [freq]: Number(e.target.value)}))}
                   className="h-24 w-1 accent-gold-500 appearance-none bg-zinc-800 rounded-full vertical-range"
-                  style={{ writingMode: 'bt-lr', appearance: 'slider-vertical' }}
+                  style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
                 />
                 <span className="text-[9px] text-zinc-500">{freq > 1000 ? `${freq/1000}k` : freq}</span>
               </div>
