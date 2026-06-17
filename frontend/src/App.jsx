@@ -84,16 +84,19 @@ export default function App() {
     }
   };
 
-  // Party Mode State
-  const [partyCode, setPartyCode] = useState(null);
-  const [isPartyHost, setIsPartyHost] = useState(false);
-  const [partyInput, setPartyInput] = useState("");
-  const [partyGuests, setPartyGuests] = useState([]);
+  // DJ Mode State
+  const [djEnergy, setDjEnergy] = useState(50);
+  const [djVibe, setDjVibe] = useState(50);
+  const [isDjActive, setIsDjActive] = useState(false);
+  const [djLoading, setDjLoading] = useState(false);
 
   const [queue, setQueue] = useState([]);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [isEndlessSession, setIsEndlessSession] = useState(false);
   const [sessionMood, setSessionMood] = useState(null);
+
+  // Deep-link pending play (for users who aren't logged in yet)
+  const [pendingPlay, setPendingPlay] = useState(null);
 
   // Player Modes
   const [isShuffle, setIsShuffle] = useState(false);
@@ -118,18 +121,39 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const playQuery = params.get("play");
-    if (playQuery && currentUser?.username) {
-      axios.get(`https://sumukh25-echomood-api.hf.space/api/library/search?q=${encodeURIComponent(playQuery)}&username=${currentUser.username}`)
+    if (playQuery) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      if (currentUser?.username && systemActive === true) {
+        // User is logged in and has profile — play immediately
+        axios.get(`https://sumukh25-echomood-api.hf.space/api/library/search?q=${encodeURIComponent(playQuery)}&username=${currentUser.username}`)
+          .then(res => {
+            if (res.data.success && res.data.tracks?.length > 0) {
+              setQueue([normaliseTrack(res.data.tracks[0])]);
+              setCurrentTrackIndex(0);
+            }
+          })
+          .catch(err => console.error("Deep-link error:", err));
+      } else {
+        // User not logged in yet — store for later
+        setPendingPlay(playQuery);
+      }
+    }
+  }, []);
+
+  // Replay pending deep-link after login + profile setup
+  useEffect(() => {
+    if (pendingPlay && currentUser?.username && systemActive === true) {
+      axios.get(`https://sumukh25-echomood-api.hf.space/api/library/search?q=${encodeURIComponent(pendingPlay)}&username=${currentUser.username}`)
         .then(res => {
-          if (res.data.success && res.data.tracks && res.data.tracks.length > 0) {
-            setQueue([res.data.tracks[0]]);
+          if (res.data.success && res.data.tracks?.length > 0) {
+            setQueue([normaliseTrack(res.data.tracks[0])]);
             setCurrentTrackIndex(0);
-            window.history.replaceState({}, document.title, window.location.pathname);
           }
         })
-        .catch(err => console.error("Deep-link error:", err));
+        .catch(err => console.error("Pending deep-link error:", err))
+        .finally(() => setPendingPlay(null));
     }
-  }, [currentUser]);
+  }, [pendingPlay, currentUser, systemActive]);
 
   const playTrackAtIndex = (index) => {
     setCurrentTrackIndex(index);
@@ -155,18 +179,6 @@ export default function App() {
 
   const playTrack = (trackList, startIndex, options = {}) => {
     if (!Array.isArray(trackList) || trackList.length === 0) return;
-    
-    // Collaborative Party Queue: Forward track to host's queue
-    if (partyCode && !isPartyHost) {
-      axios.post("https://sumukh25-echomood-api.hf.space/api/party/add", {
-        code: partyCode,
-        track: normaliseTrack(trackList[startIndex])
-      }).then(() => {
-        // Optional: show a toast notification here
-      }).catch(err => console.error("Failed to add to party queue:", err));
-      return;
-    }
-
     const safeIndex = Math.max(0, Math.min(startIndex, trackList.length - 1));
     setQueue(trackList.map(normaliseTrack));
     setCurrentTrackIndex(safeIndex);
@@ -267,90 +279,139 @@ export default function App() {
 
 
   // ── Party Mode panel ────────────────────────────────────────────────────────
-  const renderPartyPanel = () => {
+  // DJ Mode: fetch tracks based on energy and vibe
+  const fetchDJTracks = async (energy, vibe) => {
+    setDjLoading(true);
+    try {
+      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/dj/next", {
+        energy,
+        vibe,
+        username: currentUser?.username
+      });
+      if (res.data?.success && res.data.tracks?.length > 0) {
+        const tracks = res.data.tracks.map(normaliseTrack);
+        setQueue(tracks);
+        setCurrentTrackIndex(0);
+        setIsEndlessSession(true);
+        setSessionMood(res.data.mood);
+        setIsDjActive(true);
+      }
+    } catch (err) {
+      console.error("DJ Mode fetch failed:", err);
+    } finally {
+      setDjLoading(false);
+    }
+  };
+
+  const DJ_PRESETS = [
+    { name: "Chill Lounge", emoji: "🌊", energy: 20, vibe: 60, color: "from-cyan-500/20 to-blue-600/20 border-cyan-500/30" },
+    { name: "Late Night Drive", emoji: "🌙", energy: 40, vibe: 40, color: "from-indigo-500/20 to-purple-600/20 border-indigo-500/30" },
+    { name: "House Party", emoji: "🔥", energy: 90, vibe: 80, color: "from-orange-500/20 to-red-600/20 border-orange-500/30" },
+    { name: "Workout Beast", emoji: "💪", energy: 95, vibe: 70, color: "from-green-500/20 to-emerald-600/20 border-green-500/30" },
+    { name: "Heartbreak Hours", emoji: "💔", energy: 20, vibe: 15, color: "from-blue-500/20 to-slate-600/20 border-blue-500/30" },
+    { name: "Study Zone", emoji: "📚", energy: 30, vibe: 50, color: "from-violet-500/20 to-fuchsia-600/20 border-violet-500/30" },
+  ];
+
+  const getVibeLabel = (v) => {
+    if (v <= 20) return "Melancholic";
+    if (v <= 40) return "Moody";
+    if (v <= 60) return "Balanced";
+    if (v <= 80) return "Uplifting";
+    return "Euphoric";
+  };
+
+  const getEnergyLabel = (e) => {
+    if (e <= 20) return "Ambient";
+    if (e <= 40) return "Relaxed";
+    if (e <= 60) return "Moderate";
+    if (e <= 80) return "High Energy";
+    return "Maximum";
+  };
+
+  const renderDJPanel = () => {
     return (
-      <div className="w-full max-w-2xl mx-auto animate-fade-in p-8 border rounded-3xl bg-gradient-to-br from-gold-500/10 to-transparent border-gold-500/20 backdrop-blur-md">
-        <div className="text-center mb-8">
-          <h3 className="font-serif text-3xl text-gold-400 mb-2">🎉 Party Mode</h3>
-          <p className="text-sm text-zinc-300">
-            Create a live session or join a friend's room. Guests will automatically sync with the Host's player.
-          </p>
-        </div>
-
-        {!partyCode ? (
-          <div className="flex flex-col gap-6">
-            <button
-              onClick={async () => {
-                const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/party/create", { username: currentUser.username });
-                if (res.data?.success) {
-                  setPartyCode(res.data.code);
-                  setIsPartyHost(true);
-                  setPartyGuests([]);
-                }
-              }}
-              className="w-full py-4 bg-gold-500 text-black font-semibold rounded-2xl hover:bg-gold-400 transition-colors"
-            >
-              Start New Party (Host)
-            </button>
-            
-            <div className="relative flex items-center py-2">
-              <div className="flex-grow border-t border-white/10"></div>
-              <span className="flex-shrink-0 mx-4 text-xs text-zinc-500 uppercase tracking-widest">or</span>
-              <div className="flex-grow border-t border-white/10"></div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="text"
-                placeholder="Enter Code"
-                maxLength={4}
-                value={partyInput}
-                onChange={(e) => setPartyInput(e.target.value.toUpperCase())}
-                className="flex-1 bg-black/40 border border-white/10 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 text-white text-center text-lg sm:text-xl tracking-widest uppercase focus:outline-none focus:border-gold-500/50"
-              />
-              <button
-                onClick={async () => {
-                  if (partyInput.length !== 4) return;
-                  const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/party/join", { username: currentUser.username, code: partyInput });
-                  if (res.data?.success) {
-                    setPartyCode(partyInput);
-                    setIsPartyHost(false);
-                    setPartyGuests(res.data.session.guests);
-                  }
-                }}
-                disabled={partyInput.length !== 4}
-                className="px-6 py-3 sm:px-8 sm:py-4 bg-white/10 text-white font-semibold rounded-2xl hover:bg-white/20 transition-colors disabled:opacity-50 text-sm sm:text-base"
-              >
-                Join Room
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="text-center">
-            <p className="text-xs tracking-widest text-zinc-500 uppercase mb-2">
-              {isPartyHost ? "You are hosting" : "You are a guest in"}
+      <div className="w-full max-w-2xl mx-auto animate-fade-in">
+        <div className="p-8 border rounded-3xl bg-gradient-to-br from-gold-500/10 to-transparent border-gold-500/20 backdrop-blur-md">
+          <div className="text-center mb-8">
+            <h3 className="font-serif text-3xl text-gold-400 mb-2">🎧 DJ Mode</h3>
+            <p className="text-sm text-zinc-300">
+              Set your energy and vibe to generate a continuous, curated music session.
             </p>
-            <h2 className="font-serif text-6xl text-white tracking-widest mb-8">{partyCode}</h2>
-            
-            <div className="mb-8 p-4 rounded-xl bg-black/40 border border-white/5 text-left">
-              <p className="text-sm text-gold-400 mb-2">Host: {isPartyHost ? currentUser.username : "Remote"}</p>
-              <p className="text-xs text-zinc-400">
-                Guests: {partyGuests.length > 0 ? partyGuests.join(", ") : "Waiting for friends to join..."}
-              </p>
+          </div>
+
+          {/* Quick Presets */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+            {DJ_PRESETS.map((preset) => (
+              <button
+                key={preset.name}
+                onClick={() => {
+                  setDjEnergy(preset.energy);
+                  setDjVibe(preset.vibe);
+                  fetchDJTracks(preset.energy, preset.vibe);
+                }}
+                disabled={djLoading}
+                className={`p-4 rounded-2xl border bg-gradient-to-br ${preset.color} backdrop-blur-sm hover:scale-[1.03] active:scale-95 transition-all duration-200 text-left disabled:opacity-50`}
+              >
+                <span className="text-2xl">{preset.emoji}</span>
+                <p className="text-sm font-medium text-white mt-1">{preset.name}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Mood Mixer Sliders */}
+          <div className="space-y-6 mb-8 p-6 rounded-2xl bg-black/40 border border-white/5">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-xs tracking-widest uppercase text-zinc-400">Energy</label>
+                <span className="text-xs text-gold-400 font-medium">{getEnergyLabel(djEnergy)}</span>
+              </div>
+              <input
+                type="range" min="0" max="100" value={djEnergy}
+                onChange={(e) => setDjEnergy(Number(e.target.value))}
+                className="w-full h-2 rounded-full appearance-none bg-zinc-800 accent-gold-500 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-zinc-600 mt-1">
+                <span>Chill</span><span>Hype</span>
+              </div>
             </div>
 
-            <button
-              onClick={() => {
-                setPartyCode(null);
-                setIsPartyHost(false);
-                setPartyGuests([]);
-              }}
-              className="px-6 py-2 text-xs tracking-widest text-red-400 border rounded-full border-red-500/20 hover:bg-red-500/20 transition-colors"
-            >
-              LEAVE PARTY
-            </button>
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-xs tracking-widest uppercase text-zinc-400">Vibe</label>
+                <span className="text-xs text-gold-400 font-medium">{getVibeLabel(djVibe)}</span>
+              </div>
+              <input
+                type="range" min="0" max="100" value={djVibe}
+                onChange={(e) => setDjVibe(Number(e.target.value))}
+                className="w-full h-2 rounded-full appearance-none bg-zinc-800 accent-gold-500 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-zinc-600 mt-1">
+                <span>Sad</span><span>Happy</span>
+              </div>
+            </div>
           </div>
-        )}
+
+          {/* Launch Button */}
+          <button
+            onClick={() => fetchDJTracks(djEnergy, djVibe)}
+            disabled={djLoading}
+            className="w-full py-4 bg-gold-500 text-black font-semibold rounded-2xl hover:bg-gold-400 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {djLoading ? (
+              <><span className="animate-spin">⏳</span> Curating your session...</>
+            ) : isDjActive ? (
+              <>🔄 Refresh Mix</>
+            ) : (
+              <>🎵 Start DJ Session</>
+            )}
+          </button>
+
+          {isDjActive && (
+            <p className="text-center text-xs text-zinc-500 mt-4">
+              DJ Mode is active · Songs auto-queue as you listen · Adjust sliders and hit Refresh to change the vibe
+            </p>
+          )}
+        </div>
       </div>
     );
   };
@@ -468,7 +529,7 @@ export default function App() {
                       { id: "home", label: "Home" },
                       { id: "library", label: "Your Library" },
                       { id: "vault", label: "Personal Vault" },
-                      { id: "party", label: "Party Mode" },
+                      { id: "party", label: "DJ Mode" },
                       { id: "community", label: "Community" },
                       { id: "profile", label: "Profile" },
                     ].map(({ id, label }) => (
@@ -519,7 +580,7 @@ export default function App() {
               </div>
 
               <div className={activeTab === "party" ? "block" : "hidden"}>
-                {renderPartyPanel()}
+                {renderDJPanel()}
               </div>
 
 
@@ -534,7 +595,7 @@ export default function App() {
             { id: "home", label: "Home", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg> },
             { id: "library", label: "Library", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg> },
             { id: "vault", label: "Vault", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg> },
-            { id: "party", label: "Party", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg> },
+            { id: "party", label: "DJ", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><circle cx="12" cy="12" r="10" /><polygon points="10 8 16 12 10 16 10 8" /></svg> },
             { id: "community", label: "Feed", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> },
             { id: "profile", label: "Profile", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg> },
           ].map(({ id, label, icon }) => (
@@ -557,8 +618,6 @@ export default function App() {
         currentTrackIndex={currentTrackIndex}
         playNext={playNext}
         playPrevious={playPrevious}
-        partyCode={partyCode}
-        isPartyHost={isPartyHost}
         username={currentUser?.username}
         isShuffle={isShuffle}
         setIsShuffle={setIsShuffle}
@@ -566,7 +625,6 @@ export default function App() {
         setRepeatMode={setRepeatMode}
         playTrackAtIndex={playTrackAtIndex}
         removeFromQueue={removeFromQueue}
-        setPartyGuests={setPartyGuests}
       />
     </div>
   );

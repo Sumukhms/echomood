@@ -21,16 +21,13 @@ export default function GlobalPlayer({
   currentTrackIndex,
   playNext,
   playPrevious,
-  partyCode,
-  isPartyHost,
   username,
   isShuffle,
   setIsShuffle,
   repeatMode,
   setRepeatMode,
   playTrackAtIndex,
-  removeFromQueue,
-  setPartyGuests
+  removeFromQueue
 }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -47,7 +44,7 @@ export default function GlobalPlayer({
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
 
-  const [partyTrack, setPartyTrack] = useState(null);
+
   const [is8DEnabled, setIs8DEnabled] = useState(false);
   const lyricColorRef = useRef("#d4af37");
 
@@ -69,12 +66,9 @@ export default function GlobalPlayer({
   const [showEQ, setShowEQ] = useState(false);
   const [eqBands, setEqBands] = useState({ 60: 0, 230: 0, 910: 0, 3600: 0, 14000: 0 });
 
-  // Story state
-  const [isGeneratingStory, setIsGeneratingStory] = useState(false);
 
-  const localTrack = queue[currentTrackIndex] ?? null;
-  const currentTrack = (partyCode && !isPartyHost && partyTrack) ? partyTrack : localTrack;
-  const [partyQueue, setPartyQueue] = useState([]);
+
+  const currentTrack = queue[currentTrackIndex] ?? null;
 
   const handleLyricChange = useCallback((lineText) => {
     if (!lineText) return;
@@ -225,53 +219,7 @@ export default function GlobalPlayer({
     }
   }, [currentTime, duration, volume, isMuted, isPlaying, isExternal]);
 
-  // Refs for polling to avoid rapid interval resets
-  const pollDataRef = useRef({
-    isPartyHost, username, currentTrack, isPlaying, currentTime, isExternal
-  });
 
-  useEffect(() => {
-    pollDataRef.current = { isPartyHost, username, currentTrack, isPlaying, currentTime, isExternal };
-  }, [isPartyHost, username, currentTrack, isPlaying, currentTime, isExternal]);
-
-  // Party Mode Polling
-  useEffect(() => {
-    let interval;
-    if (partyCode) {
-      interval = setInterval(async () => {
-        const d = pollDataRef.current;
-        try {
-          const payload = { code: partyCode, username: d.username };
-          if (d.isPartyHost) {
-            payload.current_track = d.currentTrack;
-            payload.is_playing = d.isPlaying;
-            payload.current_time = d.currentTime;
-          }
-          const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/party/sync", payload);
-          if (res.data?.success) {
-            const state = res.data.session;
-            if (state.queue) setPartyQueue(state.queue);
-            if (state.guests && setPartyGuests) setPartyGuests(state.guests);
-            if (!d.isPartyHost) {
-              if (state.current_track) setPartyTrack(state.current_track);
-              if (state.is_playing !== d.isPlaying) setIsPlaying(state.is_playing);
-              if (Math.abs(d.currentTime - state.current_time) > 3) {
-                setCurrentTime(state.current_time);
-                if (d.isExternal && ytPlayerRef.current?.seekTo) {
-                  ytPlayerRef.current.seekTo(state.current_time, true);
-                } else if (audioRef.current) {
-                  audioRef.current.currentTime = state.current_time;
-                }
-              }
-            }
-          }
-        } catch {
-          // Silent catch
-        }
-      }, 2000);
-    }
-    return () => clearInterval(interval);
-  }, [partyCode]);
 
   // YouTube IFrame API Integration
   useEffect(() => {
@@ -729,34 +677,7 @@ export default function GlobalPlayer({
     setShowPlaylistMenu(!showPlaylistMenu);
   };
 
-  const generateStory = async () => {
-    if (!currentTrack || isGeneratingStory) return;
-    setIsGeneratingStory(true);
-    try {
-      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/story/generate", {
-        track_name: currentTrack.track_name,
-        artist_name: currentTrack.artist_name,
-        cover_url: currentTrack.cover_url,
-        mood: currentTrack.mood || "calm"
-      });
-      if (res.data?.success && res.data.image_b64) {
-        const a = document.createElement("a");
-        a.href = res.data.image_b64;
-        a.download = `EchoMood_Story_${currentTrack.track_name}.jpg`;
-        a.click();
-      }
-    } catch (err) {
-      console.error("Story generation failed", err);
-    } finally {
-      setIsGeneratingStory(false);
-    }
-  };
 
-  const handleUpvote = async (idx) => {
-    try {
-      await axios.post("https://sumukh25-echomood-api.hf.space/api/party/upvote", { code: partyCode, track_index: idx });
-    } catch (e) { console.error(e); }
-  };
 
   return (
     <div className={`fixed z-50 transition-all duration-500 ease-in-out ${isFullScreen ? 'inset-0 bg-black/95 backdrop-blur-3xl' : 'bottom-16 md:bottom-0 left-0 right-0 border-t border-white/10 bg-black/85 backdrop-blur-2xl'}`}>
@@ -1022,19 +943,7 @@ export default function GlobalPlayer({
                 </svg>
               </button>
 
-              {/* Share to Story */}
-              <button
-                onClick={generateStory}
-                disabled={isGeneratingStory}
-                className={`p-2 rounded-full transition-all ${isGeneratingStory ? 'opacity-50 cursor-not-allowed text-zinc-400' : 'text-zinc-400 hover:text-white hover:bg-white/10'}`}
-                title="Share to Story"
-              >
-                {isGeneratingStory ? '⏳' : (
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-              </button>
+
 
               {/* EQ Toggle */}
               <button

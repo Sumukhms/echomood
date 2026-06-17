@@ -987,6 +987,48 @@ def next_radio_tracks():
 # ── party sessions ──────────────────────────────────────────────────────────────
 
 import random
+# ── DJ Mode ──────────────────────────────────────────────────────────────────
+
+@app.route("/api/dj/next", methods=["POST"])
+def dj_next():
+    """Fetch tracks for DJ Mode based on energy and vibe levels."""
+    payload = request.get_json(silent=True) or {}
+    energy = int(payload.get("energy", 50))  # 0-100
+    vibe = int(payload.get("vibe", 50))      # 0-100 (sad→happy)
+    username = (payload.get("username") or "").strip()
+    
+    # Map energy+vibe to mood
+    if energy > 70 and vibe > 60:
+        mood = "party"
+    elif energy > 70 and vibe <= 60:
+        mood = "energetic"
+    elif energy <= 30 and vibe <= 30:
+        mood = "sad"
+    elif energy <= 30 and vibe > 60:
+        mood = "calm"
+    elif energy <= 30:
+        mood = "sleepy"
+    elif vibe > 70:
+        mood = "happy"
+    elif vibe <= 30:
+        mood = "nostalgic"
+    elif energy > 50:
+        mood = "focused"
+    else:
+        mood = "romantic"
+    
+    # Get user languages
+    languages = ["Hindi", "English"]
+    if username:
+        profile = db_manager.get_user_profile(username)
+        user_langs = profile.get("preferences", {}).get("languages", [])
+        if user_langs:
+            languages = user_langs
+    
+    skipped_tracks = db_manager.get_user_skips(username) if username else []
+    songs = recommender.get_recommendations(mood, languages=languages, limit=8, skipped_tracks=skipped_tracks)
+    return jsonify({"success": True, "mood": mood, "tracks": songs})
+
 import string
 
 PARTY_SESSIONS = {}
