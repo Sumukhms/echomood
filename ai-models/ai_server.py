@@ -60,6 +60,10 @@ def health_check():
 
 # ── auth ──────────────────────────────────────────────────────────────────────
 
+@app.route("/")
+def index():
+    return "<h1>EchoMood API is Running Successfully!</h1><p>The backend is fully online.</p>"
+
 @app.route("/api/auth/register", methods=["POST"])
 def register_user():
     payload = request.get_json(silent=True) or {}
