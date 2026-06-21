@@ -26,7 +26,7 @@ export default function VaultUpload({ username }) {
     formData.append("username", username);
 
     try {
-      await axios.post("https://sumukh25-echomood-api.hf.space/api/vault/upload", formData, {
+      await axios.post("http://localhost:5000/api/vault/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setStatus("success");

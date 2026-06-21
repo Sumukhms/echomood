@@ -15,6 +15,7 @@ from facial_analyzer import FacialEmotionAnalyzer
 from text_analyzer import ImprovedTextAnalyzer
 
 app = Flask(__name__)
+app.config["JSON_SORT_KEYS"] = False
 CORS(app)
 
 app.config["UPLOAD_FOLDER"] = "temp_uploads"
@@ -442,6 +443,19 @@ def fetch_itunes_category(query, limit=20, country="US"):
             time.sleep(1)
     return tracks
 
+def get_jiosaavn_artist_image(query):
+    try:
+        url = f"https://www.jiosaavn.com/api.php?__call=search.getArtistResults&q={requests.utils.quote(query)}&n=1&p=1&_format=json&_marker=0&ctx=web6dot0"
+        res = requests.get(url, timeout=5).json()
+        results = res.get("results", [])
+        if results and "image" in results[0]:
+            img = results[0]["image"]
+            if "default" not in img:
+                return img.replace("50x50", "500x500").replace("150x150", "500x500")
+    except:
+        pass
+    return ""
+
 def fetch_jiosaavn_category(query, limit=10):
     tracks = []
     for attempt in range(3):
@@ -462,9 +476,9 @@ def fetch_jiosaavn_category(query, limit=10):
             details_data = details_res.json()
             
             for song in details_data.get("songs", []):
-                title = song.get("title", "").replace("&quot;", '"')
-                artist = song.get("more_info", {}).get("singers", song.get("subtitle", "Unknown")).replace("&quot;", '"')
-                vlink = song.get("vlink")
+                title = song.get("song", song.get("title", "")).replace("&quot;", '"')
+                artist = song.get("primary_artists", song.get("singers", song.get("subtitle", "Unknown"))).replace("&quot;", '"')
+                vlink = song.get("vlink") or song.get("media_preview_url")
                 image = song.get("image", "").replace("150x150", "500x500").replace("50x50", "500x500")
                 
                 if vlink and title:
@@ -490,8 +504,8 @@ def get_library_home():
     cache_key = username if username else "__guest__"
     
     now = time.time()
-    # Check cache expiration (1 hour)
-    if cache_key in HOME_CACHE and (now - HOME_CACHE[cache_key]["timestamp"]) < 3600:
+    # Check cache expiration (1 min)
+    if cache_key in HOME_CACHE and (now - HOME_CACHE[cache_key]["timestamp"]) < 60:
         return jsonify({"success": True, "library": HOME_CACHE[cache_key]["library"]})
         
     # Cache miss or expired: fetch user profile
@@ -504,6 +518,16 @@ def get_library_home():
         
     if not languages:
         languages = ["English", "Hindi"]
+    else:
+        # Ensure we have defaults, but boost regional languages to the front
+        for fallback in ["English", "Hindi"]:
+            if fallback not in languages:
+                languages.append(fallback)
+        
+        # Sort so English and Hindi are at the end, making regional languages priority #1
+        regional = [l for l in languages if l not in ["English", "Hindi"]]
+        global_langs = [l for l in languages if l in ["English", "Hindi"]]
+        languages = regional + global_langs
     
     # If the user has selected vibes, prioritize them.
     # To keep layouts rich, if they have selected fewer than 5 vibes, top it up with a few popular default vibes.
@@ -548,108 +572,59 @@ def get_library_home():
             artist = random.choice(top_artists[lang])
             categories[f"This Is {artist}"] = f"{artist} best hits"
 
-    # Decade Throwbacks
-    if "Hindi" in languages:
-        categories["Decade Throwbacks"] = "bollywood 2010s hits nostalgic"
-    else:
-        categories["Decade Throwbacks"] = "2010s pop hits nostalgic"
+    # Ordered dictionary to maintain strict priority: Languages first
+    from collections import OrderedDict
+    unique_categories = OrderedDict()
+
+    # 1. Popular Artists (Dynamic based on languages)
+    top_artists = {
+        "English": ["The Weeknd", "Taylor Swift", "Drake", "Billie Eilish"],
+        "Hindi": ["Arijit Singh", "Shreya Ghoshal", "A.R. Rahman", "Pritam"],
+        "Spanish": ["Bad Bunny", "Rosalia", "J Balvin", "Shakira"],
+        "Kannada": ["Sonu Nigam", "Rajesh Krishnan", "Armaan Malik", "Vijay Prakash"],
+        "Tamil": ["Anirudh Ravichander", "Sid Sriram", "D. Imman"],
+        "Telugu": ["S. P. Balasubrahmanyam", "Sid Sriram", "Thaman S"],
+        "Malayalam": ["K. J. Yesudas", "Vineeth Sreenivasan"],
+        "Punjabi": ["Diljit Dosanjh", "AP Dhillon", "Sidhu Moose Wala"],
+        "Korean": ["BTS", "BLACKPINK", "IU"],
+        "Japanese": ["YOASOBI", "Kenshi Yonezu", "LiSA"]
+    }
     
-    # 1. Pure language hits
+    import random
+    selected_artists = []
+    # Pick artists sequentially by language to preserve priority order
     for lang in languages:
-        name, query = get_language_hits_query(lang)
-        categories[name] = query
+        if lang in top_artists:
+            # Pick up to 4 artists per language
+            selected_artists.extend(random.sample(top_artists[lang], min(4, len(top_artists[lang]))))
+    
+    # Cap at 8 artists while preserving the order (so Kannada artists stay at the front)
+    selected_artists = selected_artists[:8]
+    if not selected_artists:
+        selected_artists = top_artists["English"] + top_artists["Hindi"]
         
-    # 2. Language + Vibe combinations
-    for lang in languages:
-        for vibe in vibes:
-            name, query = get_category_query(lang, vibe)
-            categories[name] = query
-            
-    unique_categories = {}
+    unique_categories["Popular Artists"] = "popular artists mix"
     
-    # 3. Trending & Top 30 (Always prioritized)
+    # 2. Group all playlists strictly by language FIRST!
+    # This ensures all Kannada shelves are at the top, followed by English, etc.
     for lang in languages:
         lang_name = lang.capitalize()
+        
+        # Pure language hits
+        name, query = get_language_hits_query(lang)
+        unique_categories[name] = query
+        
+        # Trending
         unique_categories[f"Trending {lang_name}"] = f"trending {lang.lower()} hits"
-        unique_categories[f"{lang_name} Top 30"] = f"{lang.lower()} top 30 songs"
-    
+        
+        # Language + Vibe combinations
+        for vibe in vibes:
+            name, query = get_category_query(lang, vibe)
+            unique_categories[name] = query
+
+    # 3. Global Fallbacks
     if "English" in languages and "Global Viral 50" not in unique_categories:
         unique_categories["Global Viral 50"] = "global viral 50 hits"
-        
-    # Filter unique category names and randomly sample to fill the rest up to 16
-    unique_categories_list = list(categories.items())
-    import random
-    random.shuffle(unique_categories_list)
-    
-    for name, query in unique_categories_list:
-        if len(unique_categories) >= 16:
-            break
-        if name not in unique_categories:
-            unique_categories[name] = query
-        
-    # If fewer than 10 categories, fill with default shelves matching the user's selected languages
-    language_defaults = {
-        "English": [
-            ("Global Top Hits", "top pop hits"),
-            ("Lo-Fi & Chill", "lofi beats relaxing"),
-            ("Workout Mix", "workout gym energetic"),
-            ("Acoustic Covers", "acoustic cover hits"),
-            ("Rock Classics", "classic rock hits"),
-            ("Jazz Essentials", "jazz lounge instrumental")
-        ],
-        "Hindi": [
-            ("Bollywood Top 50", "bollywood top romantic"),
-            ("Desi Party", "bollywood dance hits"),
-            ("Heartbreak Hits", "bollywood sad songs"),
-            ("Morning Devotional", "hindi bhajan devotional"),
-            ("Hindi Lo-Fi", "bollywood lofi chill beats"),
-            ("Hindi Indie", "hindi indie pop folk")
-        ],
-        "Spanish": [
-            ("Latino Hits", "latino pop reggaeton hits"),
-            ("Vibras Urbanas", "latin trap urbano hits"),
-            ("Acústico Latino", "latin acoustic pop")
-        ],
-        "Kannada": [
-            ("Kannada Hits", "kannada top songs hits"),
-            ("Sandalwood Romance", "kannada romantic love songs")
-        ],
-        "Tamil": [
-            ("Tamil Top Hits", "tamil top songs hits"),
-            ("Kollywood Romance", "tamil romantic love songs")
-        ],
-        "Telugu": [
-            ("Telugu Top Hits", "telugu top songs hits"),
-            ("Tollywood Romance", "telugu romantic love love hits")
-        ],
-        "Malayalam": [
-            ("Malayalam Hits", "malayalam top songs hits"),
-            ("Mollywood Romance", "malayalam romantic love songs")
-        ],
-        "Punjabi": [
-            ("Punjabi Hits", "punjabi top dance bhangra hits"),
-            ("Punjabi Romantic", "punjabi romantic sad love songs")
-        ]
-    }
-
-    default_fallbacks = []
-    for lang in languages:
-        if lang in language_defaults:
-            default_fallbacks.extend(language_defaults[lang])
-
-    # Fallback to standard pop hits if no language fallbacks match
-    if not default_fallbacks:
-        default_fallbacks = [
-            ("Global Top Hits", "top pop hits"),
-            ("Lo-Fi & Chill", "lofi beats relaxing"),
-            ("Workout Mix", "workout gym energetic")
-        ]
-    
-    for name, query in default_fallbacks:
-        if len(unique_categories) >= 10:
-            break
-        if name not in unique_categories:
-            unique_categories[name] = query
             
     # Fetch track data from APIs in parallel
     library = {}
@@ -658,13 +633,52 @@ def get_library_home():
         indian_langs = ['hindi', 'kannada', 'tamil', 'telugu', 'malayalam', 'punjabi', 'bengali', 'marathi', 'gujarati', 'urdu', 'bollywood', 'desi']
         country_code = "IN" if any(lang in title.lower() or lang in query.lower() for lang in indian_langs) else "US"
         
-        # Merge iTunes + JioSaavn tracks
-        itunes_tracks = fetch_itunes_category(query, limit=30, country=country_code)
-        
-        # If it's Indian music, fetch from JioSaavn as well to enrich the library
-        saavn_tracks = fetch_jiosaavn_category(query, limit=20) if country_code == "IN" else []
+        if title == "Popular Artists":
+            artist_tracks = []
             
-        merged_tracks = itunes_tracks + saavn_tracks
+            def fetch_single_artist(artist_key):
+                res1 = fetch_itunes_category(f"{artist_key} best hits", limit=30, country=country_code)
+                res2 = fetch_jiosaavn_category(f"{artist_key}", limit=30) if country_code == "IN" else []
+                merged = res1 + res2
+                
+                artist_image = ""
+                if country_code == "IN":
+                    artist_image = get_jiosaavn_artist_image(artist_key)
+                
+                for t in merged:
+                    t["artist_name"] = artist_key
+                    if artist_image:
+                        t["artist_image_url"] = artist_image
+                return merged
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                results = executor.map(fetch_single_artist, selected_artists)
+                for res in results:
+                    artist_tracks.extend(res)
+                    
+            # DO NOT shuffle artist_tracks so that priority languages remain at the top
+            return title, artist_tracks
+
+        # Merge iTunes + JioSaavn tracks
+        if country_code == "IN":
+            # For Indian regional, Saavn is vastly superior
+            # Simplify the query to at most 2 words to ensure JioSaavn finds results (e.g. "Kannada lofi beats" -> "Kannada lofi")
+            words = query.split()
+            simple_query = " ".join(words[:2]) if len(words) >= 2 else query
+            saavn_tracks = fetch_jiosaavn_category(simple_query, limit=40)
+            
+            # iTunes ignores regional languages and returns Hindi Top Charts. 
+            # Only use iTunes for IN if the query explicitly asks for Hindi/Bollywood/Global.
+            if any(k in query.lower() for k in ["hindi", "bollywood", "global", "english"]):
+                itunes_tracks = fetch_itunes_category(query, limit=10, country="IN")
+            else:
+                itunes_tracks = []
+                
+            merged_tracks = saavn_tracks + itunes_tracks
+        else:
+            itunes_tracks = fetch_itunes_category(query, limit=30, country="US")
+            merged_tracks = itunes_tracks
+            
         random.shuffle(merged_tracks)
         
         # Deduplicate by track name and limit repeated images
@@ -685,16 +699,22 @@ def get_library_home():
         return title, deduped
 
     # Run fetches concurrently to speed up the dashboard loading
+    temp_results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         future_to_title = {executor.submit(fetch_category, title, query): title for title, query in unique_categories.items()}
         for future in concurrent.futures.as_completed(future_to_title):
             title = future_to_title[future]
             try:
                 result_title, deduped_tracks = future.result()
-                library[result_title] = deduped_tracks
+                temp_results[result_title] = deduped_tracks
             except Exception as exc:
                 print(f"Category {title} generated an exception: {exc}")
-                library[title] = []
+                temp_results[title] = []
+                
+    # Reconstruct library strictly in the priority order defined in unique_categories
+    for title in unique_categories.keys():
+        if title in temp_results and temp_results[title]:
+            library[title] = temp_results[title]
         
     # Cache result
     HOME_CACHE[cache_key] = {

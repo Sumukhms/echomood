@@ -30,7 +30,7 @@ export default function Onboarding({ onComplete, username }) {
     try {
       const preferences = { languages: selectedLanguages };
       if (username) {
-        await axios.post("https://sumukh25-echomood-api.hf.space/api/profile", {
+        await axios.post("http://localhost:5000/api/profile", {
           username,
           preferences
         });

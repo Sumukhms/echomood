@@ -104,7 +104,7 @@ export default function App() {
 
   useEffect(() => {
     if (currentUser?.username) {
-      axios.get(`https://sumukh25-echomood-api.hf.space/api/profile?username=${currentUser.username}`)
+      axios.get(`http://localhost:5000/api/profile?username=${currentUser.username}`)
         .then(res => {
           const prefs = res.data.preferences;
           if (prefs && prefs.languages && prefs.languages.length > 0) {
@@ -125,7 +125,7 @@ export default function App() {
       window.history.replaceState({}, document.title, window.location.pathname);
       if (currentUser?.username && systemActive === true) {
         // User is logged in and has profile — play immediately
-        axios.get(`https://sumukh25-echomood-api.hf.space/api/library/search?q=${encodeURIComponent(playQuery)}&username=${currentUser.username}`)
+        axios.get(`http://localhost:5000/api/library/search?q=${encodeURIComponent(playQuery)}&username=${currentUser.username}`)
           .then(res => {
             if (res.data.success && res.data.tracks?.length > 0) {
               setQueue([normaliseTrack(res.data.tracks[0])]);
@@ -143,7 +143,7 @@ export default function App() {
   // Replay pending deep-link after login + profile setup
   useEffect(() => {
     if (pendingPlay && currentUser?.username && systemActive === true) {
-      axios.get(`https://sumukh25-echomood-api.hf.space/api/library/search?q=${encodeURIComponent(pendingPlay)}&username=${currentUser.username}`)
+      axios.get(`http://localhost:5000/api/library/search?q=${encodeURIComponent(pendingPlay)}&username=${currentUser.username}`)
         .then(res => {
           if (res.data.success && res.data.tracks?.length > 0) {
             setQueue([normaliseTrack(res.data.tracks[0])]);
@@ -205,7 +205,7 @@ export default function App() {
       const currentTrack = queue[currentTrackIndex];
       const currentMood = sessionMood || currentTrack?.mood || (currentTrack?.mood_tags ? currentTrack.mood_tags[0] : "calm");
       try {
-        const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/radio/next", {
+        const res = await axios.post("http://localhost:5000/api/radio/next", {
           username: currentUser?.username,
           seed_mood: currentMood,
           seed_source: currentTrack?.source || ""
@@ -283,7 +283,7 @@ export default function App() {
   const fetchDJTracks = async (energy, vibe) => {
     setDjLoading(true);
     try {
-      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/dj/next", {
+      const res = await axios.post("http://localhost:5000/api/dj/next", {
         energy,
         vibe,
         username: currentUser?.username

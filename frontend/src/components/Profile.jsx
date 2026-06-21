@@ -75,7 +75,7 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const res = await axios.get(`https://sumukh25-echomood-api.hf.space/api/mood/history?username=${username}`);
+        const res = await axios.get(`http://localhost:5000/api/mood/history?username=${username}`);
         if (res.data?.success && res.data.history) {
           setMoodHistory(res.data.history);
           calculatePersona(res.data.history);
@@ -93,7 +93,7 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
   useEffect(() => {
     const fetchWrapped = async () => {
       try {
-        const res = await axios.get(`https://sumukh25-echomood-api.hf.space/api/wrapped?username=${username}`);
+        const res = await axios.get(`http://localhost:5000/api/wrapped?username=${username}`);
         if (res.data) setWrappedData(res.data);
       } catch (err) {
         console.error("Failed to prefetch wrapped data", err);
@@ -134,7 +134,7 @@ export default function Profile({ username, userProfile, onProfileUpdate, onLogo
     setSaveMessage('');
     try {
       const preferences = { languages: selectedLanguages };
-      await axios.post("https://sumukh25-echomood-api.hf.space/api/profile", {
+      await axios.post("http://localhost:5000/api/profile", {
         username,
         preferences,
         is_public: isPublic

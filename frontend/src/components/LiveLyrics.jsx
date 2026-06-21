@@ -12,7 +12,7 @@ export default function LiveLyrics({ track, currentTime, onLineChange }) {
       setLoading(true);
       try {
         const res = await axios.get(
-          `https://sumukh25-echomood-api.hf.space/api/lyrics?track_name=${encodeURIComponent(track.track_name)}&artist_name=${encodeURIComponent(track.artist_name)}`,
+          `http://localhost:5000/api/lyrics?track_name=${encodeURIComponent(track.track_name)}&artist_name=${encodeURIComponent(track.artist_name)}`,
         );
         if (res.data.success && res.data.syncedLyrics) {
           const parsedLyrics = parseLRC(res.data.syncedLyrics);

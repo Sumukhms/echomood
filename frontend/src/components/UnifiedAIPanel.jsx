@@ -40,7 +40,7 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
       setIsSubmitting(true);
       setStatusText('Analyzing text resonance...');
 
-      const response = await axios.post('https://sumukh25-echomood-api.hf.space/api/analyze/text', {
+      const response = await axios.post('http://localhost:5000/api/analyze/text', {
         text: cleanText,
         languages: userProfile?.languages || ['Hindi'],
         username: username
@@ -83,7 +83,7 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
           if (username) formData.append("username", username);
 
           try {
-            const response = await axios.post("https://sumukh25-echomood-api.hf.space/api/analyze/voice", formData, {
+            const response = await axios.post("http://localhost:5000/api/analyze/voice", formData, {
               headers: { "Content-Type": "multipart/form-data" },
             });
             setStatusText("Vibe detected.");
@@ -131,7 +131,7 @@ export default function UnifiedAIPanel({ userProfile, username, onAnalyzeComplet
       formData.append('languages', (userProfile?.languages || ['Hindi']).join(','));
       if (username) formData.append('username', username);
 
-      const response = await axios.post('https://sumukh25-echomood-api.hf.space/api/analyze/face', formData, {
+      const response = await axios.post('http://localhost:5000/api/analyze/face', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 

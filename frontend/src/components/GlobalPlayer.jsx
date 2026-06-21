@@ -103,8 +103,8 @@ export default function GlobalPlayer({
     const fetchMeta = async () => {
       try {
         const [favRes, plRes] = await Promise.all([
-          axios.get(`https://sumukh25-echomood-api.hf.space/api/favorites/all?username=${username}&_t=${Date.now()}`),
-          axios.get(`https://sumukh25-echomood-api.hf.space/api/playlists/all?username=${username}&_t=${Date.now()}`)
+          axios.get(`http://localhost:5000/api/favorites/all?username=${username}&_t=${Date.now()}`),
+          axios.get(`http://localhost:5000/api/playlists/all?username=${username}&_t=${Date.now()}`)
         ]);
         if (plRes.data) setPlaylists(plRes.data);
         if (favRes.data?.success) {
@@ -122,7 +122,7 @@ export default function GlobalPlayer({
   const fetchPlaylists = async () => {
     if (!username) return;
     try {
-      const plRes = await axios.get(`https://sumukh25-echomood-api.hf.space/api/playlists/all?username=${username}&_t=${Date.now()}`);
+      const plRes = await axios.get(`http://localhost:5000/api/playlists/all?username=${username}&_t=${Date.now()}`);
       if (plRes.data) setPlaylists(plRes.data);
     } catch (err) {
       console.error("Failed to fetch playlists for player", err);
@@ -155,9 +155,9 @@ export default function GlobalPlayer({
     setIsLiked(newLiked);
     try {
       if (newLiked) {
-        await axios.post("https://sumukh25-echomood-api.hf.space/api/favorites/add", { username, track: currentTrack });
+        await axios.post("http://localhost:5000/api/favorites/add", { username, track: currentTrack });
       } else {
-        await axios.post("https://sumukh25-echomood-api.hf.space/api/favorites/remove", { username, file_url: currentTrack.file_url || currentTrack.preview_url });
+        await axios.post("http://localhost:5000/api/favorites/remove", { username, file_url: currentTrack.file_url || currentTrack.preview_url });
       }
       window.dispatchEvent(new Event('libraryUpdate'));
     } catch (err) {
@@ -169,7 +169,7 @@ export default function GlobalPlayer({
   const addToPlaylist = async (playlistId) => {
     if (!currentTrack) return;
     try {
-      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/add_track", {
+      await axios.post("http://localhost:5000/api/playlists/add_track", {
         playlist_id: playlistId,
         track: currentTrack
       });
@@ -318,7 +318,7 @@ export default function GlobalPlayer({
       setIsLoadingYoutube(true);
       const query = `${currentTrack.track_name} ${currentTrack.artist_name}`;
       
-      axios.get("https://sumukh25-echomood-api.hf.space/api/music/youtube_url", { params: { q: query } })
+      axios.get("http://localhost:5000/api/music/youtube_url", { params: { q: query } })
         .then(res => {
           if (res.data?.youtube_url) {
             setResolvedUrl(res.data.youtube_url);

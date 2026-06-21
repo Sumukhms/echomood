@@ -23,6 +23,10 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
   const [libraryData, setLibraryData] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  // Tool Toggles
+  const [showAiTools, setShowAiTools] = useState(false);
+  const [showImporter, setShowImporter] = useState(false);
+  const [showAiModal, setShowAiModal] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -35,7 +39,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
   const fetchVibeHistory = async () => {
     if (!currentUser?.username) return;
     try {
-      const res = await axios.get(`https://sumukh25-echomood-api.hf.space/api/mood/history?username=${currentUser.username}`);
+      const res = await axios.get(`http://localhost:5000/api/mood/history?username=${currentUser.username}`);
       if (res.data?.success) {
         setVibeHistory(res.data.history || []);
       }
@@ -92,7 +96,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         username: currentUser?.username,
         seed_mood: dominantMood
       };
-      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/radio/next", payload);
+      const res = await axios.post("http://localhost:5000/api/radio/next", payload);
       if (res.data?.success && res.data.tracks?.length > 0) {
         onPlayTrack(res.data.tracks[0], res.data.tracks, { isEndless: true, seedMood: dominantMood });
       }
@@ -110,7 +114,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         username: currentUser?.username,
         seed_mood: vibe
       };
-      const res = await axios.post("https://sumukh25-echomood-api.hf.space/api/radio/next", payload);
+      const res = await axios.post("http://localhost:5000/api/radio/next", payload);
       if (res.data?.success && res.data.tracks?.length > 0) {
         onPlayTrack(res.data.tracks[0], res.data.tracks, { isEndless: true, seedMood: vibe });
       }
@@ -130,7 +134,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         if (currentUser?.username) {
           params.username = currentUser.username;
         }
-        const response = await axios.get("https://sumukh25-echomood-api.hf.space/api/library/home", { params });
+        const response = await axios.get("http://localhost:5000/api/library/home", { params });
         setLibraryData(response.data?.library ?? {});
       } catch {
         setError("Unable to load the library right now. Is the server running?");
@@ -196,7 +200,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
         ? activePlaylist.mood.toLowerCase() 
         : "calm";
         
-      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/save_ai", {
+      await axios.post("http://localhost:5000/api/playlists/save_ai", {
         username: currentUser.username,
         name: activePlaylist.name,
         tracks: activePlaylist.tracks,
@@ -295,7 +299,9 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
 
   const isFeatured = (name) => name.startsWith("Your Daily Mix") || name.startsWith("This Is") || name === "Decade Throwbacks";
   const featuredMixes = Object.entries(libraryData).filter(([name]) => isFeatured(name));
-  const regularShelves = Object.entries(libraryData).filter(([name]) => !isFeatured(name));
+  const regularShelves = Object.entries(libraryData).filter(([name]) => !isFeatured(name) && name !== "Popular Artists");
+  
+  const popularArtists = libraryData["Popular Artists"] || [];
   
   // Collect 10 random standalone tracks for "Quick Picks"
   const quickPicks = useMemo(() => {
@@ -304,7 +310,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
     Object.values(libraryData).forEach(tracks => {
       if (Array.isArray(tracks)) all.push(...tracks);
     });
-    // Shuffle and pick 30 tracks for a massive pool of singles
+    // Shuffle and pick tracks for a massive pool of singles
     const shuffled = all.sort(() => 0.5 - Math.random());
     // Deduplicate by track name
     const seen = new Set();
@@ -313,7 +319,7 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
       if (!seen.has(t.track_name.toLowerCase())) {
         seen.add(t.track_name.toLowerCase());
         finalPicks.push(t);
-        if (finalPicks.length === 30) break;
+        if (finalPicks.length === 200) break;
       }
     }
     return finalPicks;
@@ -442,143 +448,44 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-20 animate-fade-in">
       
-      {/* AI DJ Integrated Globally */}
-      <div className="mb-14">
-        <UnifiedAIPanel
-          userProfile={userProfile}
-          username={currentUser?.username}
-          onAnalyzeComplete={handleMoodDetected}
-        />
-      </div>
-
-      {/* Instant Vibes / Smart Radio Section */}
-      <section className="mb-14">
-        <h2 className="text-xl sm:text-2xl md:text-3xl font-serif text-white mb-6 px-1 font-bold">
-          {new Date().getHours() < 12 ? "Good Morning" : new Date().getHours() < 17 ? "Good Afternoon" : "Good Evening"}
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
-          {/* Smart Radio Card */}
-          <div 
-            onClick={handleStartSmartRadio}
-            className="relative overflow-hidden rounded-2xl border border-gold-500/20 bg-gradient-to-br from-gold-500/10 via-zinc-900 to-zinc-950 p-3 hover:border-gold-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(234,179,8,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="text-2xl shrink-0 p-2 bg-gold-500/10 rounded-xl border border-gold-500/20">📻</div>
-              <div className="min-w-0">
-                <p className="text-[10px] tracking-wider uppercase text-gold-400 font-bold mb-0.5">Endless Radio</p>
-                <h3 className="text-xs sm:text-sm font-serif text-white group-hover:text-gold-300 transition-colors truncate font-bold">Smart Radio</h3>
-              </div>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-gold-500 text-black flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform">
-              <span className="text-base ml-0.5">▶</span>
-            </div>
+      {/* Sleek AI DJ Banner */}
+      <div 
+        onClick={() => setShowAiModal(true)}
+        className="mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-gold-500/10 via-zinc-900 to-black border border-gold-500/20 p-4 sm:p-5 flex items-center justify-between cursor-pointer group hover:border-gold-500/50 hover:shadow-[0_0_20px_rgba(234,179,8,0.15)] transition-all"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-gold-500/20 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+            ✨
           </div>
-
-          {/* Zen Mode Card */}
-          <div 
-            onClick={() => handleStartQuickVibe("calm")}
-            className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-zinc-900 to-zinc-950 p-3 hover:border-emerald-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(16,185,129,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="text-2xl shrink-0 p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20">🍃</div>
-              <div className="min-w-0">
-                <p className="text-[10px] tracking-wider uppercase text-emerald-400 font-bold mb-0.5">Zen Chill</p>
-                <h3 className="text-xs sm:text-sm font-serif text-white group-hover:text-emerald-300 transition-colors truncate font-bold">Relaxation</h3>
-              </div>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-emerald-500 text-black flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform">
-              <span className="text-base ml-0.5">▶</span>
-            </div>
-          </div>
-
-          {/* Energy Boost Card */}
-          <div 
-            onClick={() => handleStartQuickVibe("energetic")}
-            className="relative overflow-hidden rounded-2xl border border-pink-500/20 bg-gradient-to-br from-pink-500/10 via-zinc-900 to-zinc-950 p-3 hover:border-pink-500/50 transition-all cursor-pointer group hover:shadow-[0_0_20px_rgba(236,72,153,0.15)] flex items-center justify-between gap-3 min-h-[72px]"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="text-2xl shrink-0 p-2 bg-pink-500/10 rounded-xl border border-pink-500/20">⚡</div>
-              <div className="min-w-0">
-                <p className="text-[10px] tracking-wider uppercase text-pink-400 font-bold mb-0.5">High Tempo</p>
-                <h3 className="text-xs sm:text-sm font-serif text-white group-hover:text-pink-300 transition-colors truncate font-bold">Energy Boost</h3>
-              </div>
-            </div>
-            <div className="w-9 h-9 rounded-full bg-pink-500 text-black flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform">
-              <span className="text-base ml-0.5">▶</span>
-            </div>
+          <div>
+            <h3 className="text-white font-serif text-lg sm:text-xl font-bold tracking-wide group-hover:text-gold-400 transition-colors">Need a vibe check? Start AI DJ</h3>
+            <p className="text-zinc-400 text-xs sm:text-sm mt-0.5">Let your camera, voice, or text dictate the perfect mix.</p>
           </div>
         </div>
-      </section>
+        <div className="hidden sm:flex items-center justify-center px-6 py-2 rounded-full bg-white/10 text-white font-medium text-sm group-hover:bg-gold-500 group-hover:text-black transition-colors">
+          Open AI DJ
+        </div>
+      </div>
 
-      {/* Vibe Insights Dashboard Widget */}
-      {vibeHistory.length > 0 && vibeStats && (
-        <div className="mb-14 border rounded-3xl border-white/10 bg-white/5 backdrop-blur-xl p-3 sm:p-5 md:p-8 animate-fade-in">
-          <div className="flex flex-col lg:flex-row gap-8 items-start">
-            
-            {/* Left side: Vibe breakdown */}
-            <div className="flex-1 w-full">
-              <div className="flex items-center gap-3 mb-6">
-                <span className="text-2xl">📊</span>
-                <div>
-                  <h3 className="font-serif text-lg sm:text-xl md:text-2xl text-white">Your Vibe Insights</h3>
-                  <p className="text-xs text-zinc-500 tracking-wider uppercase mt-0.5">Vibe analytics based on your AI DJ check-ins</p>
-                </div>
-              </div>
-              
-              <p className="text-sm text-zinc-300 mb-6 leading-relaxed">
-                Dominant Mood: <span className="font-serif text-lg text-gold-400 capitalize italic font-bold">{vibeStats.dominantMood}</span>. {vibeStats.advice}
-              </p>
-
-              {/* Progress bars representing percentages */}
-              <div className="space-y-4">
-                {vibeStats.breakdown.slice(0, 3).map(({ mood, percentage }) => (
-                  <div key={mood} className="w-full">
-                    <div className="flex justify-between text-xs mb-1.5 uppercase tracking-widest text-zinc-400">
-                      <span className="font-medium text-white">{mood}</span>
-                      <span>{percentage}%</span>
-                    </div>
-                    <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-gold-600 to-gold-400 rounded-full transition-all duration-1000" 
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Right side: Check-in timeline */}
-            <div className="w-full lg:w-96 shrink-0 bg-black/40 border border-white/5 rounded-2xl p-5">
-              <h4 className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Vibe Log Timeline</h4>
-              <div className="space-y-4">
-                {vibeHistory.slice(0, 4).map((h, i) => {
-                  const checkinTime = new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                  const checkinDate = new Date(h.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' });
-                  
-                  let sourceIcon = "📝";
-                  if (h.source === "voice") sourceIcon = "🎙️";
-                  if (h.source === "face") sourceIcon = "📷";
-                  
-                  return (
-                    <div key={i} className="flex items-center gap-3.5 pb-3 border-b border-white/5 last:border-b-0 last:pb-0">
-                      <div className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-lg shrink-0">
-                        {sourceIcon}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs text-white capitalize font-medium">{h.mood} Vibe</p>
-                        <p className="text-[10px] text-zinc-500 mt-0.5 capitalize">{h.source} Check-in</p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-[10px] text-zinc-400">{checkinTime}</p>
-                        <p className="text-[9px] text-zinc-600 mt-0.5">{checkinDate}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
+      {/* AI DJ Modal Overlay */}
+      {showAiModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-zinc-950 border border-gold-500/20 rounded-3xl shadow-2xl p-6 hide-scrollbar">
+            <button 
+              onClick={() => setShowAiModal(false)}
+              className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-white text-xl transition-colors z-10"
+            >
+              ✕
+            </button>
+            <h2 className="text-2xl font-serif text-white mb-6 pr-12">Your Personal AI DJ</h2>
+            <UnifiedAIPanel
+              userProfile={userProfile}
+              username={currentUser?.username}
+              onAnalyzeComplete={(mood, tracks, explanation) => {
+                setShowAiModal(false);
+                handleMoodDetected(mood, tracks, explanation);
+              }}
+            />
           </div>
         </div>
       )}
@@ -647,6 +554,34 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
       {!isLoading && !error && searchQuery === "" && (
         <div className="animate-fade-in space-y-14">
           
+          {/* Popular Artists Circular Row */}
+          {popularArtists.length > 0 && (
+            <section>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-serif text-white mb-6 px-1">Popular Artists</h2>
+              <div className="flex overflow-x-auto gap-4 sm:gap-6 pb-4 hide-scrollbar snap-x">
+                {Array.from(new Map(popularArtists.map(t => [t.artist_name, t])).values()).map((track, idx) => (
+                  <div 
+                    key={idx} 
+                    onClick={() => setActivePlaylist({ name: `This Is ${track.artist_name}`, tracks: popularArtists.filter(t => t.artist_name === track.artist_name), description: `Best of ${track.artist_name}` })}
+                    className="flex flex-col items-center gap-3 cursor-pointer group min-w-[100px] sm:min-w-[120px] snap-start shrink-0"
+                  >
+                    <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-2 border-transparent group-hover:border-gold-500 transition-all shadow-lg relative">
+                      {track.artist_image_url ? (
+                        <img src={track.artist_image_url} alt={track.artist_name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 opacity-80 group-hover:scale-110 transition-transform duration-500 flex items-center justify-center">
+                           <span className="text-3xl sm:text-4xl text-white font-bold tracking-tighter opacity-50">{track.artist_name.charAt(0)}</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-semibold text-white text-center truncate w-full px-2 group-hover:text-gold-400 transition-colors">{track.artist_name}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Made For You Grid */}
           {featuredMixes.length > 0 && (
             <section>
@@ -669,24 +604,38 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
 
           {/* Standalone Quick Picks (Moved Below Playlists) */}
           {quickPicks.length > 0 && (
-            <section>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-serif text-white mb-6 px-1">Quick Picks (Singles)</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 sm:gap-2 md:gap-4">
+            <section className="pt-8 border-t border-white/5">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-serif text-white mb-8 text-center">Discover Songs</h2>
+              <div className="flex flex-col gap-2 sm:gap-3 max-w-4xl mx-auto pb-20">
                 {quickPicks.map((track, idx) => (
                   <div 
                     key={idx} 
                     onClick={() => handlePlay(track, quickPicks)} 
-                    className="group flex items-center p-1.5 sm:p-2 md:p-3 bg-white/5 hover:bg-white/10 rounded-lg cursor-pointer transition-colors shadow-sm hover:shadow-[0_0_20px_rgba(234,179,8,0.15)] min-w-0"
+                    className="group flex items-center justify-between p-3 sm:p-4 bg-white/5 hover:bg-white/10 rounded-xl cursor-pointer transition-all hover:scale-[1.01] border border-transparent hover:border-gold-500/30"
                   >
-                    <div className="relative w-10 h-10 sm:w-14 sm:h-14 shrink-0">
-                      <img src={track.cover_url || '/placeholder.jpg'} alt="cover" className="w-full h-full object-cover rounded shadow-md bg-zinc-800" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded transition-opacity">
-                        <span className="text-white text-base sm:text-lg ml-1">▶</span>
+                    <div className="flex items-center flex-1 min-w-0">
+                      <div className="text-zinc-500 text-sm font-medium w-8 text-center hidden sm:block group-hover:hidden">
+                        {idx + 1}
+                      </div>
+                      <div className="text-gold-500 text-sm font-medium w-8 text-center hidden group-hover:block sm:group-hover:block">
+                        ▶
+                      </div>
+                      <div className="relative w-12 h-12 sm:w-14 sm:h-14 shrink-0 shadow-md">
+                        <img src={track.cover_url || '/placeholder.jpg'} alt="cover" className="w-full h-full object-cover rounded-md bg-zinc-800" />
+                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors rounded-md" />
+                      </div>
+                      <div className="ml-4 flex-1 overflow-hidden min-w-0 pr-4">
+                        <p className="text-white font-semibold text-sm sm:text-base truncate group-hover:text-gold-400 transition-colors">{track.track_name}</p>
+                        <p className="text-zinc-400 text-xs sm:text-sm truncate mt-0.5">{track.artist_name}</p>
                       </div>
                     </div>
-                    <div className="ml-3 sm:ml-4 flex-1 overflow-hidden min-w-0">
-                      <p className="text-white font-medium text-xs sm:text-sm truncate group-hover:text-gold-400 transition-colors">{track.track_name}</p>
-                      <p className="text-zinc-400 text-[10px] sm:text-xs truncate mt-0.5 sm:mt-1">{track.artist_name}</p>
+                    <div className="flex items-center gap-4 shrink-0">
+                      <button className="text-zinc-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100 hidden sm:block">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                      </button>
+                      <button className="text-zinc-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+                      </button>
                     </div>
                   </div>
                 ))}

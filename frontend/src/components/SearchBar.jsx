@@ -16,7 +16,7 @@ export default function SearchBar({ onSearchResults, onClear }) {
       try {
         setIsSearching(true);
         const response = await axios.get(
-          "https://sumukh25-echomood-api.hf.space/api/library/search",
+          "http://localhost:5000/api/library/search",
           {
             params: { q: searchQuery },
           },

@@ -12,7 +12,7 @@ export default function Sidebar({ username, onSelectPlaylist, onLogout }) {
     try {
       setIsLoading(true);
       const res = await axios.get(
-        `https://sumukh25-echomood-api.hf.space/api/playlists/all?username=${username}`
+        `http://localhost:5000/api/playlists/all?username=${username}`
       );
       setPlaylists(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
@@ -33,7 +33,7 @@ export default function Sidebar({ username, onSelectPlaylist, onLogout }) {
     const trimmed = newName.trim();
     if (!trimmed) return;
     try {
-      await axios.post("https://sumukh25-echomood-api.hf.space/api/playlists/create", {
+      await axios.post("http://localhost:5000/api/playlists/create", {
         username,
         name: trimmed,
       });

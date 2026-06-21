@@ -10,7 +10,7 @@ export default function Community({ username, onPlayTrack }) {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await axios.get("https://sumukh25-echomood-api.hf.space/api/community/users");
+        const res = await axios.get("http://localhost:5000/api/community/users");
         if (res.data?.success) {
           setUsers(res.data.users.filter(u => u.username !== username));
         }
@@ -25,7 +25,7 @@ export default function Community({ username, onPlayTrack }) {
     setIsLoading(true);
     setSelectedUser(targetUsername);
     try {
-      const res = await axios.get(`https://sumukh25-echomood-api.hf.space/api/community/user/${targetUsername}`);
+      const res = await axios.get(`http://localhost:5000/api/community/user/${targetUsername}`);
       if (res.data?.success) {
         setUserProfile(res.data.profile);
       }

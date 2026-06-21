@@ -45,7 +45,7 @@ export default function WebcamPanel({ userProfile, username, onAnalyzeComplete }
         formData.append('username', username);
       }
 
-      const response = await axios.post('https://sumukh25-echomood-api.hf.space/api/analyze/face', formData, {
+      const response = await axios.post('http://localhost:5000/api/analyze/face', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
