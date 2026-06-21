@@ -6,6 +6,8 @@ export default function Community({ username, onPlayTrack }) {
   const [selectedUser, setSelectedUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [activePlaylist, setActivePlaylist] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -44,14 +46,39 @@ export default function Community({ username, onPlayTrack }) {
 
   const [isBlending, setIsBlending] = useState(false);
 
+  const handleSaveBlendedPlaylist = async () => {
+    if (!username || !activePlaylist) return;
+    setIsSaving(true);
+    try {
+      const coverImage = activePlaylist.tracks?.find(t => t.cover_url)?.cover_url || "";
+      await axios.post("http://localhost:5000/api/playlists/save_ai", {
+        username: username,
+        name: activePlaylist.name,
+        tracks: activePlaylist.tracks,
+        cover_url: coverImage
+      });
+      window.dispatchEvent(new Event("libraryUpdate"));
+      setActivePlaylist(prev => ({ ...prev, isSaved: true }));
+    } catch (err) {
+      console.error("Save blended playlist failed:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleBlend = async () => {
     setIsBlending(true);
     try {
       const res = await axios.get(`http://localhost:5000/api/community/blend?user1=${username}&user2=${selectedUser}`);
       if (res.data?.success && res.data.tracks?.length > 0) {
-        // Dispatch to player using the first track and the full blended playlist
         onPlayTrack(res.data.tracks[0], res.data.tracks);
-        // We could also notify the user of the blend description
+        setActivePlaylist({
+          name: `Blend: ${username} + ${selectedUser}`,
+          description: `A unique mix blending your vibes with ${selectedUser}'s.`,
+          tracks: res.data.tracks,
+          isBlend: true,
+          isSaved: false
+        });
       } else {
         alert("Not enough data to blend playlists yet!");
       }
@@ -62,6 +89,89 @@ export default function Community({ username, onPlayTrack }) {
       setIsBlending(false);
     }
   };
+
+  if (activePlaylist) {
+    const { name, description, tracks, isSaved, isBlend } = activePlaylist;
+    const coverImage = tracks?.find(t => t.cover_url)?.cover_url;
+
+    return (
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-20 animate-fade-in text-white">
+        <button 
+          onClick={() => setActivePlaylist(null)}
+          className="text-zinc-400 hover:text-white flex items-center gap-2 mb-8 text-sm uppercase tracking-widest transition-colors"
+        >
+          <span>←</span> Back
+        </button>
+
+        <div className="flex flex-col md:flex-row items-center md:items-end text-center md:text-left gap-6 sm:gap-8 mb-8 sm:mb-10 pb-8 sm:pb-10 border-b border-white/10">
+          <div className="w-48 h-48 sm:w-40 sm:h-40 md:w-52 md:h-52 shrink-0 rounded-lg overflow-hidden shadow-2xl relative bg-zinc-800">
+            {coverImage ? (
+              <img src={coverImage} alt="playlist cover" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-zinc-700 flex items-center justify-center text-4xl">🎧</div>
+            )}
+          </div>
+          <div className="flex flex-col items-center md:items-start w-full">
+            <p className="text-xs uppercase tracking-widest text-gold-400 block mb-2 font-bold">{isBlend ? 'Community Blend' : 'Shared Playlist'}</p>
+            <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-7xl font-black text-white tracking-tighter mb-4">{name}</h1>
+            <p className="text-zinc-400 text-sm">{description}</p>
+            <p className="text-zinc-500 text-xs mt-2 font-bold tracking-widest uppercase">
+              Echomood • {tracks?.length || 0} songs
+            </p>
+          </div>
+        </div>
+
+        <div className="mb-10 flex gap-3 sm:gap-4 items-center justify-center md:justify-start flex-wrap">
+          <button 
+            onClick={() => onPlayTrack(tracks[0], tracks)}
+            className="w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-full bg-gold-500 text-black hover:scale-105 transition-all shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_30px_rgba(234,179,8,0.5)] shrink-0"
+          >
+            <span className="text-xl sm:text-2xl ml-1">▶</span>
+          </button>
+
+          {isSaved ? (
+            <button 
+              disabled={true}
+              className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-emerald-500/25 text-emerald-400 text-xs sm:text-sm font-medium tracking-wide border border-emerald-500/30 flex items-center gap-2 shrink-0 cursor-default"
+            >
+              <span>✓</span> Saved to Library
+            </button>
+          ) : (
+            <button 
+              onClick={handleSaveBlendedPlaylist}
+              disabled={isSaving}
+              className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all text-xs sm:text-sm font-medium tracking-wide border border-white/10 disabled:opacity-50 shrink-0"
+            >
+              {isSaving ? "Saving..." : "Save to Library"}
+            </button>
+          )}
+        </div>
+
+        {/* Tracks List */}
+        <div className="flex flex-col gap-2">
+          {tracks?.map((track, idx) => (
+            <div 
+              key={idx}
+              onClick={() => onPlayTrack(track, tracks)}
+              className="group flex items-center p-3 hover:bg-white/10 rounded-lg cursor-pointer transition-colors"
+            >
+              <div className="w-8 text-center text-zinc-500 group-hover:hidden text-sm">
+                {idx + 1}
+              </div>
+              <div className="w-8 text-center text-zinc-400 hidden group-hover:block text-sm">
+                ▶
+              </div>
+              <img src={track.cover_url || '/placeholder.jpg'} alt="cover" className="w-10 h-10 rounded object-cover ml-2 mr-4" />
+              <div className="flex-grow min-w-0">
+                <p className="text-white text-sm font-medium truncate">{track.track_name}</p>
+                <p className="text-zinc-400 text-xs truncate">{track.artist_name}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (selectedUser) {
     return (
@@ -132,7 +242,17 @@ export default function Community({ username, onPlayTrack }) {
                 <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                   {userProfile.playlists?.length > 0 ? (
                     userProfile.playlists.map(pl => (
-                      <div key={pl._id} className="border border-white/5 bg-black/40 rounded-2xl p-4">
+                      <div 
+                        key={pl._id} 
+                        onClick={() => setActivePlaylist({
+                          name: pl.name,
+                          description: `A public playlist shared by ${selectedUser}.`,
+                          tracks: pl.tracks,
+                          cover_url: pl.cover_url,
+                          isSaved: false
+                        })}
+                        className="border border-white/5 bg-black/40 rounded-2xl p-4 cursor-pointer hover:bg-black/60 hover:border-gold-500/50 transition-all group text-left"
+                      >
                         <div className="flex items-center gap-4 mb-3">
                           <div className="w-12 h-12 bg-zinc-800 rounded-lg flex items-center justify-center text-xl">
                             {pl.cover_url ? <img src={pl.cover_url} className="w-full h-full object-cover rounded-lg" alt="cover"/> : '🎧'}
@@ -147,7 +267,10 @@ export default function Community({ username, onPlayTrack }) {
                             <div 
                               key={i} 
                               className="text-sm text-zinc-300 hover:text-gold-400 cursor-pointer truncate"
-                              onClick={() => onPlayTrack(t, pl.tracks)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPlayTrack(t, pl.tracks);
+                              }}
                             >
                               <span className="text-zinc-600 mr-2">{i+1}.</span>{t.track_name} - {t.artist_name}
                             </div>

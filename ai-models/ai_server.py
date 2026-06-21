@@ -13,6 +13,7 @@ from music_recommender import RegionalMusicRecommender
 from voice_analyzer import VoiceEmotionAnalyzer
 from facial_analyzer import FacialEmotionAnalyzer
 from text_analyzer import ImprovedTextAnalyzer
+import audio_tagger
 
 app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
@@ -389,11 +390,21 @@ def upload_to_vault():
     filepath = os.path.join(app.config["VAULT_FOLDER"], unique_filename)
     audio_file.save(filepath)
 
-    file_url = f"http://127.0.0.1:5000/api/vault/stream/{unique_filename}"
+    file_url = f"{request.host_url.rstrip('/')}/api/vault/stream/{unique_filename}"
     mood_list = [m.strip().lower() for m in moods.split(",") if m.strip()]
-    db_manager.add_personal_track(username, track_name, artist_name, file_url, mood_list)
+    
+    # Run the acoustic mood analyzer
+    detected_tags = audio_tagger.analyze_audio_mood(filepath)
+    combined_tags = list(set(mood_list + detected_tags))
+    
+    db_manager.add_personal_track(username, track_name, artist_name, file_url, combined_tags)
 
-    return jsonify({"success": True, "message": "Track secured in Vault!", "url": file_url})
+    return jsonify({
+        "success": True, 
+        "message": "Track secured in Vault!", 
+        "url": file_url,
+        "detected_moods": detected_tags
+    })
 
 
 @app.route("/api/vault/stream/<filename>")
@@ -1122,8 +1133,58 @@ def dj_next():
         if user_langs:
             languages = user_langs
     
+    source = (payload.get("source") or "global").strip().lower()
     skipped_tracks = db_manager.get_user_skips(username) if username else []
-    songs = recommender.get_recommendations(mood, languages=languages, limit=8, skipped_tracks=skipped_tracks)
+    
+    if source == "library" and username:
+        # Fetch library tracks
+        library_tracks = []
+        
+        # 1. Favorites
+        favorites = db_manager.get_user_favorites(username)
+        for fav in favorites:
+            library_tracks.append(fav)
+            
+        # 2. Playlists
+        playlists = db_manager.get_user_playlists(username)
+        for pl in playlists:
+            for t in pl.get("tracks", []):
+                library_tracks.append(t)
+                
+        # 3. Vault (uploaded tracks)
+        vault_tracks = db_manager.get_user_tracks(username)
+        for vt in vault_tracks:
+            library_tracks.append({
+                "track_name": vt.get("title", "Unknown"),
+                "artist_name": "Vault",
+                "file_url": vt.get("file_url"),
+                "cover_url": "",
+                "is_external": False
+            })
+            
+        # Deduplicate
+        seen = set()
+        unique_library = []
+        for t in library_tracks:
+            track_id = t.get("file_url") or t.get("preview_url") or t.get("track_name")
+            if track_id and track_id not in seen:
+                # Filter out skips
+                is_skipped = any(s.get("track_name") == t.get("track_name") for s in skipped_tracks)
+                if not is_skipped:
+                    seen.add(track_id)
+                    unique_library.append(t)
+                    
+        # Sort/Filter loosely by mood if they have tags, otherwise just shuffle
+        # For simplicity since library tracks rarely have strict mood_tags, we shuffle
+        random.shuffle(unique_library)
+        songs = unique_library[:8]
+        
+        # Fallback to global if library is totally empty
+        if not songs:
+            songs = recommender.get_recommendations(mood, languages=languages, limit=8, skipped_tracks=skipped_tracks)
+    else:
+        songs = recommender.get_recommendations(mood, languages=languages, limit=8, skipped_tracks=skipped_tracks)
+        
     return jsonify({"success": True, "mood": mood, "tracks": songs})
 
 import string
@@ -1146,6 +1207,7 @@ def create_party():
         "is_playing": False,
         "current_time": 0,
         "queue": [],
+        "messages": [],
         "last_updated": time.time()
     }
     return jsonify({"success": True, "code": code})
@@ -1210,15 +1272,54 @@ def party_upvote():
     payload = request.get_json(silent=True) or {}
     code = (payload.get("code") or "").upper()
     track_index = payload.get("track_index")
+    username = payload.get("username", "Anonymous")
+    
     if code not in PARTY_SESSIONS:
         return jsonify({"success": False, "error": "Invalid code"}), 404
+        
     queue = PARTY_SESSIONS[code].get("queue", [])
     if track_index is None or track_index < 0 or track_index >= len(queue):
         return jsonify({"success": False, "error": "Invalid index"}), 400
-    queue[track_index]["upvotes"] = queue[track_index].get("upvotes", 0) + 1
+        
+    track = queue[track_index]
+    if "voted_by" not in track:
+        track["voted_by"] = []
+        
+    if username in track["voted_by"]:
+        track["voted_by"].remove(username)
+    else:
+        track["voted_by"].append(username)
+        
+    track["upvotes"] = len(track["voted_by"])
+    
     queue.sort(key=lambda x: x.get("upvotes", 0), reverse=True)
     PARTY_SESSIONS[code]["queue"] = queue
     return jsonify({"success": True, "queue": queue})
+
+@app.route("/api/party/chat", methods=["POST"])
+def party_chat():
+    payload = request.get_json(silent=True) or {}
+    code = (payload.get("code") or "").upper()
+    username = payload.get("username", "Anonymous")
+    text = (payload.get("text") or "").strip()
+    
+    if code not in PARTY_SESSIONS:
+        return jsonify({"success": False, "error": "Invalid code"}), 404
+    if not text:
+        return jsonify({"success": False, "error": "Message is empty"}), 400
+        
+    msg = {
+        "username": username,
+        "text": text,
+        "timestamp": int(time.time() * 1000)
+    }
+    PARTY_SESSIONS[code].setdefault("messages", []).append(msg)
+    
+    # Keep only last 50 messages to prevent memory leak
+    if len(PARTY_SESSIONS[code]["messages"]) > 50:
+        PARTY_SESSIONS[code]["messages"] = PARTY_SESSIONS[code]["messages"][-50:]
+        
+    return jsonify({"success": True, "messages": PARTY_SESSIONS[code]["messages"]})
 
 @app.route("/api/wrapped", methods=["GET"])
 def get_wrapped():

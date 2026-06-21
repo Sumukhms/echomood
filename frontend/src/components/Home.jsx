@@ -191,27 +191,29 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
     setTimeout(fetchVibeHistory, 1000);
   };
 
-  const handleSaveAiPlaylist = async () => {
-    if (!currentUser?.username || !activePlaylist || !activePlaylist.isAi) return;
+  const handleSavePlaylist = async () => {
+    if (!currentUser?.username || !activePlaylist) return;
     setIsSaving(true);
     try {
+      const coverImage = activePlaylist.tracks?.find(t => t.cover_url)?.cover_url;
       const validCovers = ["happy", "sad", "energetic", "calm", "focused"];
       const coverName = validCovers.includes(activePlaylist.mood?.toLowerCase()) 
         ? activePlaylist.mood.toLowerCase() 
         : "calm";
+      const finalCoverUrl = coverImage || `/covers/${coverName}.png`;
         
       await axios.post("http://localhost:5000/api/playlists/save_ai", {
         username: currentUser.username,
         name: activePlaylist.name,
         tracks: activePlaylist.tracks,
-        cover_url: `/covers/${coverName}.png`
+        cover_url: finalCoverUrl
       });
       // Emit library update event
       window.dispatchEvent(new Event('libraryUpdate'));
-      // Update UI to show it's saved (remove 'isAi' flag so button disappears)
-      setActivePlaylist(prev => ({ ...prev, isAi: false, description: "Saved to your library." }));
+      // Update UI to show it's saved
+      setActivePlaylist(prev => ({ ...prev, isSaved: true }));
     } catch (error) {
-      console.error("Failed to save AI playlist", error);
+      console.error("Failed to save playlist", error);
     } finally {
       setIsSaving(false);
     }
@@ -388,22 +390,30 @@ export default function Home({ currentUser, userProfile, onPlayTrack }) {
           </button>
 
           {isAi && (
-            <>
-              <button 
-                onClick={() => onPlayTrack(tracks[0], tracks, { isEndless: true, seedMood: activePlaylist.mood })}
-                disabled={isGeneratingRadio}
-                className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-gold-500 text-black hover:bg-gold-400 hover:scale-105 transition-all text-xs sm:text-sm font-medium tracking-wide shadow-[0_0_20px_rgba(234,179,8,0.2)] flex items-center gap-2 shrink-0"
-              >
-                <span>🎧</span> Start Endless DJ Session
-              </button>
-              <button 
-                onClick={handleSaveAiPlaylist}
-                disabled={isSaving}
-                className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all text-xs sm:text-sm font-medium tracking-wide border border-white/10 disabled:opacity-50 shrink-0"
-              >
-                {isSaving ? "Saving..." : "Save to Library"}
-              </button>
-            </>
+            <button 
+              onClick={() => onPlayTrack(tracks[0], tracks, { isEndless: true, seedMood: activePlaylist.mood })}
+              disabled={isGeneratingRadio}
+              className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-gold-500 text-black hover:bg-gold-400 hover:scale-105 transition-all text-xs sm:text-sm font-medium tracking-wide shadow-[0_0_20px_rgba(234,179,8,0.2)] flex items-center gap-2 shrink-0"
+            >
+              <span>🎧</span> Start Endless DJ Session
+            </button>
+          )}
+
+          {activePlaylist.isSaved ? (
+            <button 
+              disabled={true}
+              className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-emerald-500/25 text-emerald-400 text-xs sm:text-sm font-medium tracking-wide border border-emerald-500/30 flex items-center gap-2 shrink-0 cursor-default"
+            >
+              <span>✓</span> Saved to Library
+            </button>
+          ) : (
+            <button 
+              onClick={handleSavePlaylist}
+              disabled={isSaving}
+              className="px-4 py-3 sm:px-6 sm:py-3 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all text-xs sm:text-sm font-medium tracking-wide border border-white/10 disabled:opacity-50 shrink-0"
+            >
+              {isSaving ? "Saving..." : "Save to Library"}
+            </button>
           )}
         </div>
 

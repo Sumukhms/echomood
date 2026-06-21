@@ -31,6 +31,11 @@ export default function VaultGallery({ username, onPlayTrack }) {
       }
     };
     fetchTracks();
+
+    window.addEventListener('vaultUpdate', fetchTracks);
+    return () => {
+      window.removeEventListener('vaultUpdate', fetchTracks);
+    };
   }, [username]);
 
   // Local (non-YouTube) tracks only go into the audio queue

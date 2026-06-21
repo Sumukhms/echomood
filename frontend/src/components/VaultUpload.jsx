@@ -7,6 +7,7 @@ export default function VaultUpload({ username }) {
   const [artistName, setArtistName] = useState("");
   const [moods, setMoods] = useState("");
   const [status, setStatus] = useState("idle"); // idle, uploading, success, error
+  const [detectedMoods, setDetectedMoods] = useState([]);
 
   const handleUpload = async (e) => {
     e.preventDefault();
@@ -26,18 +27,24 @@ export default function VaultUpload({ username }) {
     formData.append("username", username);
 
     try {
-      await axios.post("http://localhost:5000/api/vault/upload", formData, {
+      const res = await axios.post("http://localhost:5000/api/vault/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+      setDetectedMoods(res.data.detected_moods || []);
       setStatus("success");
-      // Reset form after 2 seconds
+      
+      // Dispatch update to refresh VaultGallery list
+      window.dispatchEvent(new Event('vaultUpdate'));
+      
+      // Reset form after 4 seconds to allow reading the AI tags
       setTimeout(() => {
         setStatus("idle");
         setFile(null);
         setTrackName("");
         setArtistName("");
         setMoods("");
-      }, 2000);
+        setDetectedMoods([]);
+      }, 4000);
     } catch (error) {
       console.error(error);
       setStatus("error");
@@ -122,6 +129,19 @@ export default function VaultUpload({ username }) {
               : "UPLOAD TO VAULT"}
         </button>
       </form>
+
+      {status === "success" && (
+        <div className="mt-6 p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-100 text-xs text-center animate-fade-in">
+          <p className="font-bold mb-1 text-sm text-emerald-400">✓ Track secured in Vault!</p>
+          {detectedMoods.length > 0 ? (
+            <p className="text-zinc-400">
+              AI acoustic tags added: <span className="text-gold-400 font-semibold">{detectedMoods.join(", ")}</span>
+            </p>
+          ) : (
+            <p className="text-zinc-500">Acoustic analysis complete.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

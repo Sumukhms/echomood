@@ -16,6 +16,18 @@ export default {
       fontFamily: {
         serif: ['"Playfair Display"', 'serif'],
         sans: ['Montserrat', 'sans-serif'],
+      },
+      animation: {
+        'spin-slow': 'spin 4s linear infinite',
+        'eq-1': 'eq 1s ease-in-out infinite alternate',
+        'eq-2': 'eq 1.2s ease-in-out infinite alternate-reverse',
+        'eq-3': 'eq 0.8s ease-in-out infinite alternate',
+      },
+      keyframes: {
+        eq: {
+          '0%': { height: '20%' },
+          '100%': { height: '100%' },
+        }
       }
     },
   },

@@ -32,7 +32,8 @@ export default function GlobalPlayer({
   repeatMode,
   setRepeatMode,
   playTrackAtIndex,
-  removeFromQueue
+  removeFromQueue,
+  isGuest
 }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -198,6 +199,40 @@ export default function GlobalPlayer({
     }
     return () => clearInterval(interval);
   }, [isExternal, isPlaying, duration]);
+
+  // Emit player state to parent (for party mode sync)
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('playerStateChange', {
+      detail: { isPlaying, currentTime }
+    }));
+  }, [isPlaying, currentTime]);
+
+  // Listen for sync commands from parent (for party mode guests)
+  useEffect(() => {
+    const handleSyncCommand = (e) => {
+      const { isPlaying: hostPlaying, currentTime: hostTime } = e.detail;
+      
+      if (hostPlaying !== undefined && hostPlaying !== isPlaying) {
+        if (hostPlaying) {
+          if (audioRef.current) audioRef.current.play().catch(() => {});
+          if (isExternal && ytPlayerRef.current?.playVideo) ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        } else {
+          if (audioRef.current) audioRef.current.pause();
+          if (isExternal && ytPlayerRef.current?.pauseVideo) ytPlayerRef.current.pauseVideo();
+          setIsPlaying(false);
+        }
+      }
+      
+      if (hostTime !== undefined && Math.abs(currentTime - hostTime) > 10) {
+        if (audioRef.current) audioRef.current.currentTime = hostTime;
+        if (isExternal && ytPlayerRef.current?.seekTo) ytPlayerRef.current.seekTo(hostTime, true);
+        setCurrentTime(hostTime);
+      }
+    };
+    window.addEventListener('partySyncCommand', handleSyncCommand);
+    return () => window.removeEventListener('partySyncCommand', handleSyncCommand);
+  }, [isPlaying, currentTime, isExternal]);
 
   // Smart Transitions: Auto Volume Fade Out / Fade In
   useEffect(() => {
@@ -592,31 +627,35 @@ export default function GlobalPlayer({
       switch (e.code) {
         case "Space":
           e.preventDefault();
-          togglePlayback();
+          if (!isGuest) togglePlayback();
           break;
         case "ArrowLeft":
           e.preventDefault();
-          setCurrentTime((prev) => {
-            const next = Math.max(0, prev - 10);
-            if (isExternal && ytPlayerRef.current?.seekTo) {
-              ytPlayerRef.current.seekTo(next, true);
-            } else if (audioRef.current) {
-              audioRef.current.currentTime = next;
-            }
-            return next;
-          });
+          if (!isGuest) {
+            setCurrentTime((prev) => {
+              const next = Math.max(0, prev - 10);
+              if (isExternal && ytPlayerRef.current?.seekTo) {
+                ytPlayerRef.current.seekTo(next, true);
+              } else if (audioRef.current) {
+                audioRef.current.currentTime = next;
+              }
+              return next;
+            });
+          }
           break;
         case "ArrowRight":
           e.preventDefault();
-          setCurrentTime((prev) => {
-            const next = Math.min(duration || 0, prev + 10);
-            if (isExternal && ytPlayerRef.current?.seekTo) {
-              ytPlayerRef.current.seekTo(next, true);
-            } else if (audioRef.current) {
-              audioRef.current.currentTime = next;
-            }
-            return next;
-          });
+          if (!isGuest) {
+            setCurrentTime((prev) => {
+              const next = Math.min(duration || 0, prev + 10);
+              if (isExternal && ytPlayerRef.current?.seekTo) {
+                ytPlayerRef.current.seekTo(next, true);
+              } else if (audioRef.current) {
+                audioRef.current.currentTime = next;
+              }
+              return next;
+            });
+          }
           break;
         case "ArrowUp":
           e.preventDefault();
@@ -647,11 +686,11 @@ export default function GlobalPlayer({
           break;
         case "KeyN":
           e.preventDefault();
-          playNext();
+          if (!isGuest) playNext();
           break;
         case "KeyP":
           e.preventDefault();
-          playPrevious();
+          if (!isGuest) playPrevious();
           break;
         default:
           break;
@@ -838,8 +877,8 @@ export default function GlobalPlayer({
                 step={1}
                 value={Math.min(currentTime, duration || 0)}
                 onChange={handleSeek}
-                disabled={!currentTrack || (audioError && !isExternal)}
-                className="flex-1 h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-gold-500"
+                disabled={isGuest || !currentTrack || (audioError && !isExternal)}
+                className={`flex-1 h-1 bg-zinc-800 rounded-lg appearance-none accent-gold-500 ${isGuest ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
               />
               <span className="text-xs text-zinc-400 w-10">{formatTime(duration)}</span>
             </div>
@@ -856,7 +895,7 @@ export default function GlobalPlayer({
 
               <button
                 onClick={playPrevious}
-                disabled={!canSkipBack}
+                disabled={isGuest || !canSkipBack}
                 className="p-2 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
               >
                 <svg className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
@@ -864,7 +903,7 @@ export default function GlobalPlayer({
 
               <button
                 onClick={togglePlayback}
-                disabled={!currentTrack || isLoadingYoutube || (!isExternal && audioError)}
+                disabled={isGuest || !currentTrack || isLoadingYoutube || (!isExternal && audioError)}
                 className="w-16 h-16 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 disabled:opacity-30 disabled:hover:scale-100 transition-all shadow-lg"
               >
                 {isPlaying ? (
@@ -876,7 +915,7 @@ export default function GlobalPlayer({
 
               <button
                 onClick={playNext}
-                disabled={!canSkipForward}
+                disabled={isGuest || !canSkipForward}
                 className="p-2 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
               >
                 <svg className="w-8 h-8 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
@@ -1051,7 +1090,7 @@ export default function GlobalPlayer({
                 </button>
                 <button
                   onClick={togglePlayback}
-                  disabled={!currentTrack || isLoadingYoutube || (!isExternal && audioError)}
+                  disabled={isGuest || !currentTrack || isLoadingYoutube || (!isExternal && audioError)}
                   className="w-9 h-9 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 transition-all"
                 >
                   {isPlaying ? (
@@ -1062,7 +1101,7 @@ export default function GlobalPlayer({
                 </button>
                 <button
                   onClick={playNext}
-                  disabled={!canSkipForward}
+                  disabled={isGuest || !canSkipForward}
                   className="p-1 text-zinc-400 hover:text-white"
                 >
                   <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
@@ -1114,7 +1153,7 @@ export default function GlobalPlayer({
 
                   <button
                     onClick={playPrevious}
-                    disabled={!canSkipBack}
+                    disabled={isGuest || !canSkipBack}
                     className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
                   >
                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" /></svg>
@@ -1122,7 +1161,7 @@ export default function GlobalPlayer({
 
                   <button
                     onClick={togglePlayback}
-                    disabled={!currentTrack || isLoadingYoutube || (!isExternal && audioError)}
+                    disabled={isGuest || !currentTrack || isLoadingYoutube || (!isExternal && audioError)}
                     className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-black hover:scale-105 disabled:opacity-30 disabled:hover:scale-100 transition-all"
                   >
                     {isPlaying ? (
@@ -1134,7 +1173,7 @@ export default function GlobalPlayer({
 
                   <button
                     onClick={playNext}
-                    disabled={!canSkipForward}
+                    disabled={isGuest || !canSkipForward}
                     className="p-1 text-zinc-400 hover:text-white disabled:opacity-30 transition-colors"
                   >
                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>
