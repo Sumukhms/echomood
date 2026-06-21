@@ -6,7 +6,7 @@ import numpy as np
 import time
 import requests
 import concurrent.futures
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from database import MongoManager
 from music_recommender import RegionalMusicRecommender
@@ -102,6 +102,24 @@ def reset_password():
         return jsonify({"success": False, "message": "Username not found or update failed."}), 404
     return jsonify({"success": True, "message": "Password successfully reset."})
 
+# ── Proxy ───────────────────────────────────────────────────────────────────
+
+@app.route("/api/proxy/audio", methods=["GET"])
+def proxy_audio():
+    url = request.args.get("url")
+    if not url:
+        return jsonify({"success": False, "message": "URL required"}), 400
+    try:
+        r = requests.get(url, stream=True)
+        headers = {
+            "Content-Type": r.headers.get("Content-Type", "audio/mpeg"),
+            "Access-Control-Allow-Origin": "*",
+            "Accept-Ranges": "bytes"
+        }
+        return Response(r.iter_content(chunk_size=1024 * 64), headers=headers, status=r.status_code)
+    except Exception as e:
+        return str(e), 500
+
 # ── profile ───────────────────────────────────────────────────────────────────
 
 @app.route("/api/profile", methods=["GET"])
@@ -143,6 +161,61 @@ def get_community_user_profile(username):
     if not profile:
         return jsonify({"success": False, "message": "User not found or not public"}), 404
     return jsonify({"success": True, "profile": profile})
+
+@app.route("/api/community/blend", methods=["GET"])
+def blend_profiles():
+    username1 = request.args.get("user1")
+    username2 = request.args.get("user2")
+    if not username1 or not username2:
+        return jsonify({"success": False, "message": "Both users required"}), 400
+
+    profile1 = db_manager.get_user_profile(username1) or {}
+    profile2 = db_manager.get_user_profile(username2) or {}
+    
+    prefs1 = profile1.get("preferences", {})
+    prefs2 = profile2.get("preferences", {})
+    
+    # Merge languages
+    langs1 = prefs1.get("languages", ["English"])
+    langs2 = prefs2.get("languages", ["English"])
+    combined_langs = list(dict.fromkeys(langs1 + langs2))
+    
+    # Extract recent moods
+    history1 = profile1.get("history", [])
+    history2 = profile2.get("history", [])
+    
+    mood1 = history1[-1].get("mood", "happy") if history1 else "happy"
+    mood2 = history2[-1].get("mood", "happy") if history2 else "happy"
+    
+    # Simple blend logic: just use mood1 for the first half, mood2 for second half, 
+    # but we can just ask the recommender for both. Wait, recommender takes a single string.
+    # We will fetch 10 songs for mood1 and 10 songs for mood2!
+    
+    songs1 = recommender.get_recommendations(mood1, languages=combined_langs, limit=10)
+    songs2 = recommender.get_recommendations(mood2, languages=combined_langs, limit=10)
+    
+    # Interleave them for a blended feel
+    blended_tracks = []
+    for i in range(max(len(songs1), len(songs2))):
+        if i < len(songs1):
+            blended_tracks.append(songs1[i])
+        if i < len(songs2):
+            blended_tracks.append(songs2[i])
+            
+    # Dedup by track_name
+    seen = set()
+    final_blend = []
+    for t in blended_tracks:
+        if t["track_name"] not in seen:
+            seen.add(t["track_name"])
+            final_blend.append(t)
+            
+    return jsonify({
+        "success": True, 
+        "blend_name": f"{username1} x {username2} Blend",
+        "description": f"A magical blend of {mood1} and {mood2} vibes across {', '.join(combined_langs)}.",
+        "tracks": final_blend
+    })
 
 # ── semantic voice & text analysis ───────────────────────────────────────────────────────────────
 

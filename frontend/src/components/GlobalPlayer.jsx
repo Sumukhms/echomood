@@ -292,9 +292,13 @@ export default function GlobalPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isExternal, resolvedUrl]);
 
-  // Check if it's an iTunes 30s preview
-  const isItunesPreview = (url) => {
-    return typeof url === "string" && (url.includes("apple.com") || url.includes("mzstatic.com"));
+  // Check if it's a 30s/15s preview (iTunes or JioSaavn)
+  const isPreviewUrl = (url) => {
+    return typeof url === "string" && (
+      url.includes("apple.com") || 
+      url.includes("mzstatic.com") || 
+      url.includes("jiotunepreview.jio.com")
+    );
   };
 
   const [prevTrackUrl, setPrevTrackUrl] = useState(null);
@@ -308,12 +312,12 @@ export default function GlobalPlayer({
     setIsLoadingYoutube(false);
   }
 
-  // When track changes: resolve full song link from YouTube if it's an iTunes preview
+  // When track changes: resolve full song link from YouTube if it's a preview
   useEffect(() => {
 
     if (!trackUrl) return;
 
-    if (isItunesPreview(trackUrl) && currentTrack?.track_name) {
+    if (isPreviewUrl(trackUrl) && currentTrack?.track_name) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoadingYoutube(true);
       const query = `${currentTrack.track_name} ${currentTrack.artist_name}`;
@@ -745,11 +749,11 @@ export default function GlobalPlayer({
         </div>
       </div>
 
-      {/* Hidden audio element — only used for local mp3 tracks */}
+      {/* Hidden audio element — only used for local mp3 tracks and proxied external tracks */}
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
-        src={!isExternal && resolvedUrl ? resolvedUrl : undefined}
+        src={!isExternal && resolvedUrl ? (resolvedUrl.includes("localhost") || resolvedUrl.startsWith("/") ? resolvedUrl : `http://localhost:5000/api/proxy/audio?url=${encodeURIComponent(resolvedUrl)}`) : undefined}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
         onTimeUpdate={(e) => {
           const newTime = e.currentTarget.currentTime || 0;

@@ -42,6 +42,27 @@ export default function Community({ username, onPlayTrack }) {
     setUserProfile(null);
   };
 
+  const [isBlending, setIsBlending] = useState(false);
+
+  const handleBlend = async () => {
+    setIsBlending(true);
+    try {
+      const res = await axios.get(`http://localhost:5000/api/community/blend?user1=${username}&user2=${selectedUser}`);
+      if (res.data?.success && res.data.tracks?.length > 0) {
+        // Dispatch to player using the first track and the full blended playlist
+        onPlayTrack(res.data.tracks[0], res.data.tracks);
+        // We could also notify the user of the blend description
+      } else {
+        alert("Not enough data to blend playlists yet!");
+      }
+    } catch (err) {
+      console.error("Blend failed:", err);
+      alert("Blend failed to generate.");
+    } finally {
+      setIsBlending(false);
+    }
+  };
+
   if (selectedUser) {
     return (
       <div className="w-full text-white animate-fade-in">
@@ -61,11 +82,22 @@ export default function Community({ username, onPlayTrack }) {
                 {selectedUser.charAt(0).toUpperCase()}
               </div>
               <h2 className="text-4xl font-bold font-serif mb-2">{selectedUser}</h2>
-              <div className="flex justify-center gap-2 mb-2">
+              <div className="flex justify-center gap-2 mb-4">
                 {userProfile.preferences?.vibes?.map(v => (
                   <span key={v} className="px-2 py-1 text-[10px] uppercase tracking-wider bg-white/10 rounded border border-white/5 text-gold-300">{v}</span>
                 ))}
               </div>
+              <button
+                onClick={handleBlend}
+                disabled={isBlending}
+                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-bold text-sm tracking-wide shadow-lg hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2 mx-auto"
+              >
+                {isBlending ? (
+                  <span className="animate-pulse">✨ Mixing your vibes...</span>
+                ) : (
+                  <span>🪄 Blend Tastes</span>
+                )}
+              </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

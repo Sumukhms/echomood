@@ -325,7 +325,7 @@ class MongoManager:
         # Get liked songs
         liked_songs = self.get_user_favorites(username)
         # Get playlists
-        playlists = self.get_user_playlists(str(user["_id"]))
+        playlists = self.get_user_playlists(username)
         
         return {
             "username": user["username"],

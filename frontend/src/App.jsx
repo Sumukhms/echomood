@@ -61,14 +61,11 @@ export default function App() {
     }
   });
 
-  // PWA Install Prompt State
   const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   useEffect(() => {
     const handler = (e) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setDeferredPrompt(e);
     };
     window.addEventListener('beforeinstallprompt', handler);
@@ -83,6 +80,7 @@ export default function App() {
       setDeferredPrompt(null);
     }
   };
+
 
   // DJ Mode State
   const [djEnergy, setDjEnergy] = useState(50);
@@ -453,7 +451,7 @@ export default function App() {
           {deferredPrompt && (
             <div className="fixed top-0 left-0 right-0 bg-zinc-900 border-b border-gold-500/30 text-white px-4 py-3 flex items-center justify-between z-50 shadow-lg">
               <div className="flex items-center gap-3">
-                <img src="/logo.png" alt="EchoMood" className="w-8 h-8 rounded-lg shadow-lg" />
+                <img src="/pwa-192x192.png" alt="EchoMood" className="w-8 h-8 rounded-lg shadow-lg" />
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-white tracking-wide">Install EchoMood</span>
                   <span className="text-[10px] text-zinc-300">Add to your home screen for the full app experience.</span>
