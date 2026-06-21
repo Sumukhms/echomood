@@ -5,7 +5,10 @@ import './index.css'
 import App from './App.jsx'
 
 // Set up Axios interceptor to dynamically rewrite the API base URL in production
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:5000' 
+    : 'https://sumukh25-echomood-api.hf.space');
 axios.interceptors.request.use((config) => {
   if (config.url && config.url.startsWith('http://localhost:5000')) {
     config.url = config.url.replace('http://localhost:5000', apiBaseUrl);

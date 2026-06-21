@@ -16,6 +16,11 @@ function isYouTube(url) {
   );
 }
 
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:5000' 
+    : 'https://sumukh25-echomood-api.hf.space');
+
 export default function GlobalPlayer({
   queue,
   currentTrackIndex,
@@ -753,7 +758,7 @@ export default function GlobalPlayer({
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
-        src={!isExternal && resolvedUrl ? (resolvedUrl.includes("localhost") || resolvedUrl.startsWith("/") ? resolvedUrl : `http://localhost:5000/api/proxy/audio?url=${encodeURIComponent(resolvedUrl)}`) : undefined}
+        src={!isExternal && resolvedUrl ? (resolvedUrl.includes("localhost") || resolvedUrl.startsWith("/") || resolvedUrl.includes("echomood-api") ? resolvedUrl : `${apiBaseUrl}/api/proxy/audio?url=${encodeURIComponent(resolvedUrl)}`) : undefined}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration || 0)}
         onTimeUpdate={(e) => {
           const newTime = e.currentTarget.currentTime || 0;
