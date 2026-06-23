@@ -805,7 +805,7 @@ export default function GlobalPlayer({
           const dur = e.currentTarget.duration;
           if (dur > 10 && dur - newTime < 2) {
             // Gapless playback simulation
-            if (currentTrackIndex < queue.length - 1 || repeatMode !== 0 || isEndlessSession) {
+            if (currentTrackIndex < queue.length - 1 || repeatMode !== 0) {
               const evt = new Event('ended');
               e.currentTarget.dispatchEvent(evt);
               e.currentTarget.pause();
